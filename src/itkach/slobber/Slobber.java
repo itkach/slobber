@@ -76,6 +76,9 @@ public class Slobber implements Container {
     Map<String, Container> handlers = new HashMap<String, Container>();
 
 
+    public Slob getSlob(String slobId) {
+        return slobMap.get(slobId);
+    }
 
     public Slobber(final Slob[] slobs) {
         this.slobs = slobs;
@@ -162,7 +165,7 @@ public class Slobber implements Container {
             @Override
             public void GET(Request request, Response response, PrintStream out) throws Exception{
                 Query q = request.getQuery();
-                System.out.println("Query: " + q);
+                //System.out.println("Query: " + q);
                 String key = q.get("key");
                 if (key == null) {
                     notFound(response);
@@ -193,10 +196,10 @@ public class Slobber implements Container {
                 String referer = req.getValue("Referer");
                 AddressParser refererParser = new AddressParser(referer);
                 String referringSlobId = refererParser.getQuery().get("slob");
-                System.out.println("Referer: " + referer + " referringSlob: " + referringSlobId);
-                System.out.println("Query: " + q);
+                //System.out.println("Referer: " + referer + " referringSlob: " + referringSlobId);
+                //System.out.println("Query: " + q);
                 String ifNoneMatch = req.getValue("If-None-Match");
-                System.out.println("ifNoneMatch: " + ifNoneMatch);
+                //System.out.println("ifNoneMatch: " + ifNoneMatch);
 
                 String key = q.get("key");
                 String[] pathSegments = req.getPath().getSegments();
@@ -205,10 +208,12 @@ public class Slobber implements Container {
                     Iterator<Slob.Blob> result = null;
                     if (referringSlobId != null) {
                         Slob referringSlob = slobMap.get(referringSlobId);
+                        System.out.println("Using slob " + referringSlob.getTags().get("label"));
                         if (referringSlob != null) {
                             result = Slob.find(key, referringSlob);
                             if (result.hasNext()) {
                                 resp.setValue("Location", mkContentURL(result.next())) ;
+                                System.out.println("Redirecting to " + resp.getValue("Location"));
                                 resp.setStatus(Status.SEE_OTHER);
                                 return;
                             }
@@ -232,7 +237,7 @@ public class Slobber implements Container {
                     resp.setStatus(Status.NOT_MODIFIED);
                     return;
                 }
-                Slob slob = slobMap.get(slobId);
+                Slob slob = getSlob(slobId);
                 if (slob == null) {
                     notFound(resp);
                     return;
