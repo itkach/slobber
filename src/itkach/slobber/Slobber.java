@@ -11,8 +11,11 @@ import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
@@ -71,20 +74,40 @@ public class Slobber implements Container {
 
     }
 
-    Slob[] slobs;
-    Map<String, Slob> slobMap = new HashMap<String, Slob>();
-    Map<String, Container> handlers = new HashMap<String, Container>();
+    private List<Slob> slobs = Collections.emptyList();
+    private Map<String, Slob> slobMap = new HashMap<String, Slob>();
+    private Map<String, Container> handlers = new HashMap<String, Container>();
 
 
     public Slob getSlob(String slobId) {
         return slobMap.get(slobId);
     }
 
-    public Slobber(final Slob[] slobs) {
-        this.slobs = slobs;
-        for (Slob s : slobs) {
+    public List<Slob> getSlobs() {
+        return slobs;
+    }
+
+    public void setSlobs(List<Slob> newSlobs) {
+        if (this.slobs != null) {
+            for (Slob s : slobs) {
+                try {
+                    s.close();
+                } catch (IOException e) {
+                    e.printStackTrace();
+                }
+            }
+            slobMap.clear();
+        }
+        if (newSlobs == null) {
+            newSlobs = Collections.emptyList();
+        }
+        this.slobs = newSlobs;
+        for (Slob s : this.slobs) {
             slobMap.put(s.getId().toString(), s);
         }
+    }
+
+    public Slobber() {
 
         Properties sysProps = System.getProperties();
 
@@ -171,7 +194,7 @@ public class Slobber implements Container {
                     notFound(response);
                     return;
                 }
-                Iterator<Slob.Blob> result = Slob.find(key, slobs);
+                Iterator<Slob.Blob> result = Slob.find(key, getSlobs());
                 JsonArray json = new JsonArray();
                 while (result.hasNext()) {
                     Slob.Blob b = result.next();
@@ -210,7 +233,7 @@ public class Slobber implements Container {
                         Slob referringSlob = slobMap.get(referringSlobId);
                         System.out.println("Using slob " + referringSlob.getTags().get("label"));
                         if (referringSlob != null) {
-                            result = Slob.find(key, referringSlob);
+                            result = Slob.find(key, Arrays.asList(new Slob[]{referringSlob}));
                             if (result.hasNext()) {
                                 resp.setValue("Location", mkContentURL(result.next())) ;
                                 System.out.println("Redirecting to " + resp.getValue("Location"));
@@ -220,7 +243,7 @@ public class Slobber implements Container {
                         }
                     }
                     if (result == null || !result.hasNext()) {
-                        result = Slob.find(key, slobs);
+                        result = Slob.find(key, getSlobs());
                         if (!result.hasNext()) {
                             notFound(resp);
                             return;
@@ -308,7 +331,8 @@ public class Slobber implements Container {
         }
         int port = Integer.parseInt(System.getProperty("slobber.port", "8013"));
         String addr = System.getProperty("slobber.host", "127.0.0.1");
-        Slobber slobber = new Slobber(slobs);
+        Slobber slobber = new Slobber();
+        slobber.setSlobs(Arrays.asList(slobs));
         slobber.start(addr, port);
     }
  }
