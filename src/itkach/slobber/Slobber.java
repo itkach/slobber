@@ -216,14 +216,29 @@ public class Slobber implements Container {
             protected void GET(Request req, Response resp, PrintStream out)
                     throws Exception {
                 Query q = req.getQuery();
+                String ifNoneMatch = req.getValue("If-None-Match");
+                String slobId = q.get("slob");
+                String blobId = q.get("blob");
+                if (ifNoneMatch != null && slobId != null && blobId != null &&
+                        mkETag(slobId, blobId).equals(ifNoneMatch)) {
+                    resp.setStatus(Status.NOT_MODIFIED);
+                    return;
+                }
+                if (slobId != null && blobId != null) {
+                    Slob slob = getSlob(slobId);
+                    if (slob == null) {
+                        notFound(resp);
+                        return;
+                    }
+                    Slob.ContentReader content = slob.get(blobId);
+                    setHeaders(resp, content, slob.getId(), blobId);
+                    out.write(content.getContent());
+                    return;
+                }
+
                 String referer = req.getValue("Referer");
                 AddressParser refererParser = new AddressParser(referer);
                 String referringSlobId = refererParser.getQuery().get("slob");
-                //System.out.println("Referer: " + referer + " referringSlob: " + referringSlobId);
-                //System.out.println("Query: " + q);
-                String ifNoneMatch = req.getValue("If-None-Match");
-                //System.out.println("ifNoneMatch: " + ifNoneMatch);
-
                 String key = q.get("key");
                 String[] pathSegments = req.getPath().getSegments();
                 if (pathSegments.length == 2) {
@@ -253,22 +268,7 @@ public class Slobber implements Container {
                     resp.setStatus(Status.SEE_OTHER);
                     return;
                 }
-                String slobId = q.get("slob");
-                String blobId = q.get("blob");
-                if (ifNoneMatch != null && slobId != null && blobId != null &&
-                        mkETag(slobId, blobId).equals(ifNoneMatch)) {
-                    resp.setStatus(Status.NOT_MODIFIED);
-                    return;
-                }
-                Slob slob = getSlob(slobId);
-                if (slob == null) {
-                    notFound(resp);
-                    return;
-                }
-                Slob.ContentReader content = slob.get(blobId);
-                setHeaders(resp, content, slob.getId(), blobId);
-                out.write(content.getContent());
-                return;
+                notFound(resp);
             }
         });
     }
