@@ -188,7 +188,6 @@ public class Slobber implements Container {
             @Override
             public void GET(Request request, Response response, PrintStream out) throws Exception{
                 Query q = request.getQuery();
-                //System.out.println("Query: " + q);
                 String key = q.get("key");
                 if (key == null) {
                     notFound(response);
@@ -246,12 +245,10 @@ public class Slobber implements Container {
                     Iterator<Slob.Blob> result = null;
                     if (referringSlobId != null) {
                         Slob referringSlob = slobMap.get(referringSlobId);
-                        System.out.println("Using slob " + referringSlob.getTags().get("label"));
                         if (referringSlob != null) {
                             result = Slob.find(key, Arrays.asList(new Slob[]{referringSlob}));
                             if (result.hasNext()) {
                                 resp.setValue("Location", mkContentURL(result.next())) ;
-                                System.out.println("Redirecting to " + resp.getValue("Location"));
                                 resp.setStatus(Status.SEE_OTHER);
                                 return;
                             }
