@@ -11,6 +11,7 @@ import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
@@ -34,8 +35,8 @@ import org.simpleframework.transport.Server;
 import org.simpleframework.transport.connect.Connection;
 import org.simpleframework.transport.connect.SocketConnection;
 
-import com.eclipsesource.json.JsonArray;
-import com.eclipsesource.json.JsonObject;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
 
 public class Slobber implements Container {
 
@@ -77,6 +78,7 @@ public class Slobber implements Container {
     private List<Slob> slobs = Collections.emptyList();
     private Map<String, Slob> slobMap = new HashMap<String, Slob>();
     private Map<String, Container> handlers = new HashMap<String, Container>();
+    private ObjectMapper json = new ObjectMapper();
 
 
     public Slob getSlob(String slobId) {
@@ -108,6 +110,8 @@ public class Slobber implements Container {
     }
 
     public Slobber() {
+
+        json.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
 
         Properties sysProps = System.getProperties();
 
@@ -194,17 +198,17 @@ public class Slobber implements Container {
                     return;
                 }
                 Iterator<Slob.Blob> result = Slob.find(key, getSlobs());
-                JsonArray json = new JsonArray();
+                List<Map<String, String>> items = new ArrayList<Map<String, String>>();
                 while (result.hasNext()) {
                     Slob.Blob b = result.next();
-                    JsonObject item = new JsonObject();
-                    item.add("url", mkContentURL(b));
-                    item.add("label", b.key);
-                    json.add(item);
+                    Map<String, String> item = new HashMap<String, String>();
+                    item.put("url", mkContentURL(b));
+                    item.put("label", b.key);
+                    items.add(item);
                 }
                 response.setValue("Content-Type", "application/json");
                 OutputStreamWriter os = new OutputStreamWriter(out, "UTF8");
-                json.writeTo(os);
+                json.writeValue(os, items);
                 os.close();
             }
         });
