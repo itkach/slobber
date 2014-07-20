@@ -2,9 +2,22 @@
   Slobber is a web service that allows to find and retrieve content
   from [[https://github.com/itkach/slob][slob]] files. Slobber is written in Java.
 
-  To build, install [[http://www.gradle.org/][Gradle]], then run
+  Slobber depends on [[https://github.com/itkach/slobj][SlobJ]]. Get it first:
 
    #+BEGIN_SRC sh
+   git clone https://github.com/itkach/slobj.git
+   #+END_SRC
+
+  To build, install [[http://www.gradle.org/][Gradle]], then get the source code:
+
+   #+BEGIN_SRC sh
+   git clone https://github.com/itkach/slobber.git
+   #+END_SRC
+
+  then build:
+
+   #+BEGIN_SRC sh
+   cd slobber
    gradle -c standalaone-settings.gradle build
    #+END_SRC
 
