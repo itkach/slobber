@@ -1,0 +1,34 @@
+* Slobber
+  Slobber is a web service that allows to find and retrieve content
+  from [[https://github.com/itkach/slob][slob]] files. Slobber is written in Java.
+
+  To build, install [[http://www.gradle.org/][Gradle]], then run
+
+   #+BEGIN_SRC sh
+   gradle -c standalaone-settings.gradle build
+   #+END_SRC
+
+  To build a /fat/ jar that includes all the dependencies:
+
+   #+BEGIN_SRC sh
+   gradle -c standalaone-settings.gradle fatJar
+   #+END_SRC
+
+  (Note that fatJar currenly works only with gradle < 2.0)
+
+  To run Slobber from a fat jar and have it serve a slob file located
+  at /~/Downloads/simplewiki-20130525.slob/:
+
+   #+BEGIN_SRC sh
+   java -jar build/libs/slobber-0.1.jar ~/Downloads/simplewiki-20130525.slob
+   #+END_SRC
+
+   By default Slobber listens on port 8013 at 127.0.0.1 interface.
+
+   To find keys starting with letter A:
+
+   #+BEGIN_SRC sh
+   curl "http://localhost:8013/find?key=A"
+   #+END_SRC
+
+   Use URLs specified in the return JSON document to retrieve content.
