@@ -21,8 +21,6 @@ repositories {
     mavenCentral()
 }
 
-manifest =
-
 jar {
     manifest {
         attributes(
