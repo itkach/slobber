@@ -90,16 +90,7 @@ public class Slobber implements Container {
     }
 
     public void setSlobs(List<Slob> newSlobs) {
-        if (this.slobs != null) {
-            for (Slob s : slobs) {
-                try {
-                    s.close();
-                } catch (IOException e) {
-                    e.printStackTrace();
-                }
-            }
-            slobMap.clear();
-        }
+        slobMap.clear();
         if (newSlobs == null) {
             newSlobs = Collections.emptyList();
         }
