@@ -266,7 +266,7 @@ public class Slobber implements Container {
     }
 
     public Server start(String addrStr, int port) throws IOException {
-        Server server = new ContainerServer(this);
+        Server server = new ContainerServer(this, 16);
         Connection connection = new SocketConnection(server);
         SocketAddress address = new InetSocketAddress(InetAddress.getByName(addrStr), 8013);
         connection.connect(address);
