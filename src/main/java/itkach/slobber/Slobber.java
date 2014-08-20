@@ -11,6 +11,7 @@ import java.io.PrintStream;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -226,7 +227,10 @@ public class Slobber implements Container {
                     }
                     Slob.ContentReader content = slob.get(blobId);
                     setHeaders(resp, content, slob.getId(), blobId);
-                    out.write(content.getContent());
+                    ByteBuffer bytes = content.getContent();
+                    while (bytes.hasRemaining()) {
+                        out.write(bytes.get());
+                    }
                     return;
                 }
 
