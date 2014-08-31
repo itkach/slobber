@@ -6,6 +6,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
 import java.net.InetAddress;
@@ -45,34 +46,42 @@ public class Slobber implements Container {
 
         @Override
         public void handle(Request req, Response resp) {
-            PrintStream out = null;
             long time = System.currentTimeMillis();
             resp.setValue("Server", "Slobber/1.0 (Simple 5.1.6)");
             resp.setDate("Date", time);
             resp.setValue("Access-Control-Allow-Origin", req.getValue("Origin"));
             try {
-                out = resp.getPrintStream();
                 if (req.getMethod().equals("GET")) {
-                    GET(req, resp, out);
+                    GET(req, resp);
                 }
                 else {
                     resp.setStatus(Status.METHOD_NOT_ALLOWED);
                     resp.setValue("Content-Type", "text/plain");
-                    out.printf("Method %s is not allowed", req.getMethod());
+                    resp.getPrintStream().printf("Method %s is not allowed", req.getMethod());
                 }
             }
             catch (Exception e) {
                 e.printStackTrace();
                 resp.setValue("Content-Type", "text/plain");
                 resp.setCode(500);
+                PrintStream out = null;
+                try {
+                    out = resp.getPrintStream();
+                } catch (IOException e1) {
+                    e1.printStackTrace();
+                }
                 if (out != null && !out.checkError()) {
                     e.printStackTrace(out);
                 }
             }
-            out.close();
+            try {
+                resp.close();
+            } catch (IOException e) {
+                e.printStackTrace();
+            }
         }
 
-        abstract protected void GET(Request req, Response resp, PrintStream out) throws Exception;
+        abstract protected void GET(Request req, Response resp) throws Exception;
 
     }
 
@@ -134,7 +143,7 @@ public class Slobber implements Container {
                     }
 
                     @Override
-                    protected void GET(Request req, Response resp, PrintStream out)
+                    protected void GET(Request req, Response resp)
                             throws Exception {
                         Path path = req.getPath();
                         String extension =  path.getExtension();
@@ -166,6 +175,7 @@ public class Slobber implements Container {
                         if (mimeType != null) {
                             resp.setValue("Content-Type", mimeType);
                         }
+                        OutputStream out = resp.getOutputStream();
                         while (true) {
                             byte [] buf = new byte[16384];
                             int readCount = is.read(buf);
@@ -182,7 +192,7 @@ public class Slobber implements Container {
 
         handlers.put("find", new GETContainer() {
             @Override
-            public void GET(Request request, Response response, PrintStream out) throws Exception{
+            public void GET(Request request, Response response) throws Exception{
                 Query q = request.getQuery();
                 String key = q.get("key");
                 if (key == null) {
@@ -199,6 +209,7 @@ public class Slobber implements Container {
                     items.add(item);
                 }
                 response.setValue("Content-Type", "application/json");
+                OutputStream out = response.getOutputStream();
                 OutputStreamWriter os = new OutputStreamWriter(out, "UTF8");
                 json.writeValue(os, items);
                 os.close();
@@ -208,17 +219,19 @@ public class Slobber implements Container {
         handlers.put("content", new GETContainer() {
 
             @Override
-            protected void GET(Request req, Response resp, PrintStream out)
+            protected void GET(Request req, Response resp)
                     throws Exception {
                 Query q = req.getQuery();
                 String ifNoneMatch = req.getValue("If-None-Match");
                 String slobId = q.get("slob");
                 String blobId = q.get("blob");
+
                 if (ifNoneMatch != null && slobId != null && blobId != null &&
-                        mkETag(slobId, blobId).equals(ifNoneMatch)) {
+                    mkETag(slobId, blobId).equals(ifNoneMatch)) {
                     resp.setStatus(Status.NOT_MODIFIED);
                     return;
                 }
+
                 if (slobId != null && blobId != null) {
                     Slob slob = getSlob(slobId);
                     if (slob == null) {
@@ -228,20 +241,17 @@ public class Slobber implements Container {
                     Slob.ContentReader content = slob.get(blobId);
                     setHeaders(resp, content, slob.getId(), blobId);
                     ByteBuffer bytes = content.getContent();
-                    while (bytes.hasRemaining()) {
-                        out.write(bytes.get());
-                    }
+                    resp.getByteChannel().write(bytes);
                     return;
                 }
 
-                String referer = req.getValue("Referer");
-                AddressParser refererParser = new AddressParser(referer);
-                String referringSlobId = refererParser.getQuery().get("slob");
-                String key = q.get("key");
                 String[] pathSegments = req.getPath().getSegments();
                 if (pathSegments.length == 2) {
-                    key = pathSegments[1];
+                    String key = pathSegments[1];
                     Iterator<Slob.Blob> result = null;
+                    String referer = req.getValue("Referer");
+                    AddressParser refererParser = new AddressParser(referer);
+                    String referringSlobId = refererParser.getQuery().get("slob");
                     if (referringSlobId != null) {
                         Slob referringSlob = slobMap.get(referringSlobId);
                         if (referringSlob != null) {
