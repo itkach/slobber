@@ -257,11 +257,87 @@ public class Slobber implements Container {
             @Override
             protected void GET(Request req, Response resp)
                     throws Exception {
+                /*
+                FIXME: implement these rules fully
+
+                /slob
+                    (application/json) return list of slob ids
+
+                /slob/{slob uuid}
+                    (application/json) return slob info
+
+                /slob/{slob uuid}/{key}
+                /slob/{slob uuid}/{key}?blob={blob id}
+
+                    (content-type) return content. Cache content with
+
+                    Cache-Control: max-age=31556926
+
+                    (approximately 1 year - practically forever, there may be trouble with larger values)
+
+                /slob/{slob uri}/{key}
+
+                    (content-type) return content. Maybe cache for some short period of time,
+                    say 5 or 10 minutes, also set ETag to slob Id, so that subsequent requests
+                    include If-None-Match. If slob uri resolves to a different slob id -
+                    return new resource, otherwise Not Modified.
+
+                 Need to make sure blobId is only ever used if slob id is specified,
+                 never with slob uri
+
+                 */
+
+                String[] pathSegments = req.getPath().getSegments();
+                if (pathSegments.length  == 1) {
+                    resp.setValue("Content-Type", "application/json");
+                    OutputStream out = resp.getOutputStream();
+                    OutputStreamWriter os = new OutputStreamWriter(out, "UTF8");
+                    Map<String, List<String>> data = new HashMap<String, List<String>>();
+                    List<String> ids = new ArrayList<String>();
+                    data.put("ids", ids);
+                    for (Slob s : slobs) {
+                        ids.add(s.getId().toString());
+                    }
+                    json.writeValue(os, ids);
+                    return;
+                }
+
+                //FIXME URIs like "http://de.wikipedia.org"
+                //(URL encoded: "http%3A%2F%2Fde.wikipedia.org") are not parsed correctly
+                //and produce 3 segments. Looks like a bug in Simple
+
+                if (pathSegments.length  == 2) {
+                    resp.setValue("Content-Type", "application/json");
+                    OutputStream out = resp.getOutputStream();
+                    OutputStreamWriter os = new OutputStreamWriter(out, "UTF8");
+
+                    String slobIdOrUri = pathSegments[1];
+
+                    Slob s = findSlob(slobIdOrUri);
+
+                    Map<String, Object> data = new HashMap<String, Object>();
+                    if (s == null) {
+                        resp.setStatus(Status.NOT_FOUND);
+                        json.writeValue(os, data);
+                        return;
+                    }
+
+                    data.put("id", s.getId().toString());
+                    data.put("compression", s.header.compression);
+                    data.put("encoding", s.header.encoding);
+                    data.put("blobCount", s.header.blobCount);
+                    data.put("refCount", s.size());
+                    data.put("contentTypes", s.header.contentTypes);
+                    data.put("tags", s.getTags());
+
+                    resp.setValue("Cache-Control", "no-cache");
+                    json.writeValue(os, data);
+                    return;
+                }
+
                 Query q = req.getQuery();
                 String ifNoneMatch = req.getValue("If-None-Match");
                 String blobId = q.get("blob");
-
-                String[] pathSegments = req.getPath().getSegments();
 
                 String key = q.get("key");
                 if (pathSegments.length == 3) {
