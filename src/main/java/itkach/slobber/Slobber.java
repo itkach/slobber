@@ -9,9 +9,11 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
+import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -39,8 +41,10 @@ import org.simpleframework.transport.connect.SocketConnection;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
 
 public class Slobber implements Container {
+
 
     static abstract class GETContainer implements Container {
 
@@ -95,8 +99,8 @@ public class Slobber implements Container {
         return slobMap.get(slobId);
     }
 
-    public List<Slob> getSlobs() {
-        return slobs;
+    public Slob[] getSlobs() {
+        return slobs.toArray(new Slob[slobs.size()]);
     }
 
     public void setSlobs(List<Slob> newSlobs) {
@@ -110,9 +114,41 @@ public class Slobber implements Container {
         }
     }
 
+    public String getSlobURI(String slobId) {
+        Slob slob = getSlob(slobId);
+        return getURI(slob);
+    }
+
+    public String getURI(Slob slob) {
+        Map<String, String> tags = slob.getTags();
+        String uri = tags.get("uri");
+        if (uri == null) {
+            uri = "slob:" + slob.getId();
+        }
+        return uri;
+    }
+
+    public Slob findSlob(String slobIdOrUri) {
+        Slob slob = getSlob(slobIdOrUri);
+        if (slob == null) {
+            slob = findSlob(slobIdOrUri);
+        }
+        return slob;
+    }
+
+    public Slob findSlobByURI(String slobURI) {
+        for (Slob s : slobs) {
+            if (getURI(s).equals(slobURI)) {
+                return s;
+            }
+        }
+        return null;
+    }
+
     public Slobber() {
 
         json.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
+        json.configure(SerializationFeature.INDENT_OUTPUT, true);
 
         Properties sysProps = System.getProperties();
 
@@ -216,67 +252,75 @@ public class Slobber implements Container {
             }
         });
 
-        handlers.put("content", new GETContainer() {
+        handlers.put("slob", new GETContainer() {
 
             @Override
             protected void GET(Request req, Response resp)
                     throws Exception {
                 Query q = req.getQuery();
                 String ifNoneMatch = req.getValue("If-None-Match");
-                String slobId = q.get("slob");
                 String blobId = q.get("blob");
 
-                if (ifNoneMatch != null && slobId != null && blobId != null &&
-                    mkETag(slobId, blobId).equals(ifNoneMatch)) {
-                    resp.setStatus(Status.NOT_MODIFIED);
-                    return;
-                }
-
-                if (slobId != null && blobId != null) {
-                    Slob slob = getSlob(slobId);
-                    if (slob == null) {
-                        notFound(resp);
-                        return;
-                    }
-                    Slob.ContentReader content = slob.get(blobId);
-                    setHeaders(resp, content, slob.getId(), blobId);
-                    ByteBuffer bytes = content.getContent();
-                    resp.getByteChannel().write(bytes);
-                    return;
-                }
-
                 String[] pathSegments = req.getPath().getSegments();
-                if (pathSegments.length == 2) {
-                    String key = pathSegments[1];
-                    Iterator<Slob.Blob> result = null;
-                    String referer = req.getValue("Referer");
-                    AddressParser refererParser = new AddressParser(referer);
-                    String referringSlobId = refererParser.getQuery().get("slob");
-                    if (referringSlobId != null) {
-                        Slob referringSlob = slobMap.get(referringSlobId);
-                        if (referringSlob != null) {
-                            result = Slob.find(key, Arrays.asList(new Slob[]{referringSlob}));
-                            if (result.hasNext()) {
-                                resp.setValue("Location", mkContentURL(result.next())) ;
-                                resp.setStatus(Status.SEE_OTHER);
-                                return;
-                            }
-                        }
-                    }
-                    if (result == null || !result.hasNext()) {
-                        result = Slob.find(key, getSlobs());
-                        if (!result.hasNext()) {
-                            notFound(resp);
+
+                String key = q.get("key");
+                if (pathSegments.length == 3) {
+                    key = pathSegments[2];
+                }
+
+                String slobIdOrUri = null;
+                if (pathSegments.length >= 2) {
+                    slobIdOrUri = pathSegments[1];
+                }
+
+                Slob slob = getSlob(slobIdOrUri);
+                if (slob == null) {
+                    slob = findSlob(slobIdOrUri);
+                }
+
+                if (slob == null) {
+                    notFound(resp);
+                    return;
+                }
+
+                if (blobId != null) {
+                    if (ifNoneMatch != null) {
+                        if (mkETag(slob.getId(), blobId).equals(ifNoneMatch)) {
+                            resp.setStatus(Status.NOT_MODIFIED);
                             return;
                         }
                     }
-                    resp.setValue("Location", mkContentURL(result.next())) ;
-                    resp.setStatus(Status.SEE_OTHER);
+                    Slob.ContentReader reader = slob.get(blobId);
+                    serveContent(resp, slob, blobId, reader);
                     return;
                 }
+
+                if (key != null) {
+                    if (ifNoneMatch != null) {
+                        if (mkETag(slob.getId(), key).equals(ifNoneMatch)) {
+                            resp.setStatus(Status.NOT_MODIFIED);
+                            return;
+                        }
+                    }
+                }
+
+                Iterator<Slob.Blob> result = Slob.find(key, slob);
+                if (result.hasNext()) {
+                    Slob.Blob blob = result.next();
+                    serveContent(resp, slob, key, blob);
+                    return;
+                }
+
                 notFound(resp);
             }
         });
+    }
+
+    private void serveContent(Response resp, Slob slob, String blobIdOrKey,
+                              Slob.ContentReader reader) throws IOException {
+        setHeaders(resp, reader.getContentType(), slob.getId(), blobIdOrKey);
+        ByteBuffer bytes = reader.getContent();
+        resp.getByteChannel().write(bytes);
     }
 
     public Server start(String addrStr, int port) throws IOException {
@@ -287,9 +331,9 @@ public class Slobber implements Container {
         return server;
     }
 
-    private void setHeaders(Response resp, Slob.ContentReader c, UUID ownerId, String blobId) throws IOException {
-        resp.setValue("Content-Type", c.getContentType());
-        resp.setValue("ETag", mkETag(ownerId, blobId));
+    private void setHeaders(Response resp, String contentType, UUID ownerId, String blobIdOrKey) throws IOException {
+        resp.setValue("Content-Type", contentType);
+        resp.setValue("ETag", mkETag(ownerId, URLEncoder.encode(blobIdOrKey, "UTF-8")));
     }
 
     private void notFound(Response resp) throws IOException {
@@ -299,8 +343,15 @@ public class Slobber implements Container {
         body.printf("Not found");
     }
 
-    private String mkContentURL(Slob.Blob b) {
-        return String.format("/content/?slob=%s&blob=%s", b.owner.getId(), b.id);
+    public static String mkContentURL(Slob.Blob b) {
+        try {
+            return String.format("/slob/%s/%s?blob=%s#%s",
+                    b.owner.getId(),
+                    URLEncoder.encode(b.key, "UTF-8"),
+                    b.id, b.fragment);
+        } catch (UnsupportedEncodingException e) {
+            throw new RuntimeException(e);
+        }
     }
 
     private String mkETag(UUID ownerId, String blobId) {
@@ -308,7 +359,7 @@ public class Slobber implements Container {
     }
 
     private String mkETag(String ownerId, String blobId) {
-        return String.format("\"%s-%s\"", ownerId, blobId);
+        return String.format("\"%s/%s\"", ownerId, blobId);
     }
 
     public void handle(Request req, Response resp) {
@@ -340,5 +391,6 @@ public class Slobber implements Container {
         Slobber slobber = new Slobber();
         slobber.setSlobs(Arrays.asList(slobs));
         slobber.start(addr, port);
+        System.out.println(String.format("Listening at %s:%s", addr, port));
     }
  }
