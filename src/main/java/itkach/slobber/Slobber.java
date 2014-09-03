@@ -131,7 +131,7 @@ public class Slobber implements Container {
     public Slob findSlob(String slobIdOrUri) {
         Slob slob = getSlob(slobIdOrUri);
         if (slob == null) {
-            slob = findSlob(slobIdOrUri);
+            slob = findSlobByURI(slobIdOrUri);
         }
         return slob;
     }
