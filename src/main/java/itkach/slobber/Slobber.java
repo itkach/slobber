@@ -258,7 +258,6 @@ public class Slobber implements Container {
             protected void GET(Request req, Response resp)
                     throws Exception {
                 /*
-                FIXME: implement these rules fully
 
                 /slob
                     (application/json) return list of slob ids
@@ -298,6 +297,7 @@ public class Slobber implements Container {
                     for (Slob s : slobs) {
                         ids.add(s.getId().toString());
                     }
+                    resp.setValue("Cache-Control", "no-cache");
                     json.writeValue(os, ids);
                     return;
                 }
@@ -350,8 +350,10 @@ public class Slobber implements Container {
                 }
 
                 Slob slob = getSlob(slobIdOrUri);
+                boolean isSlobId = true;
                 if (slob == null) {
                     slob = findSlob(slobIdOrUri);
+                    isSlobId = false;
                 }
 
                 if (slob == null) {
@@ -359,31 +361,31 @@ public class Slobber implements Container {
                     return;
                 }
 
-                if (blobId != null) {
-                    if (ifNoneMatch != null) {
-                        if (mkETag(slob.getId(), blobId).equals(ifNoneMatch)) {
-                            resp.setStatus(Status.NOT_MODIFIED);
-                            return;
-                        }
-                    }
+                if (isSlobId && blobId != null) {
+                    resp.setValue("Cache-Control", "max-age=31556926");
                     Slob.ContentReader reader = slob.get(blobId);
-                    serveContent(resp, slob, blobId, reader);
+                    serveContent(resp, reader);
                     return;
                 }
 
-                if (key != null) {
-                    if (ifNoneMatch != null) {
-                        if (mkETag(slob.getId(), key).equals(ifNoneMatch)) {
-                            resp.setStatus(Status.NOT_MODIFIED);
-                            return;
-                        }
+                if (key != null && ifNoneMatch != null) {
+                    if (mkETag(slob.getId()).equals(ifNoneMatch)) {
+                        resp.setStatus(Status.NOT_MODIFIED);
+                        return;
                     }
                 }
 
                 Iterator<Slob.Blob> result = Slob.find(key, slob);
                 if (result.hasNext()) {
                     Slob.Blob blob = result.next();
-                    serveContent(resp, slob, key, blob);
+                    if (isSlobId) {
+                        resp.setValue("Cache-Control", "max-age=31556926");
+                    }
+                    else {
+                        resp.setValue("Cache-Control", "max-age=600");
+                        resp.setValue("ETag", mkETag(slob.getId()));
+                    }
+                    serveContent(resp, blob);
                     return;
                 }
 
@@ -392,9 +394,9 @@ public class Slobber implements Container {
         });
     }
 
-    private void serveContent(Response resp, Slob slob, String blobIdOrKey,
+    private void serveContent(Response resp,
                               Slob.ContentReader reader) throws IOException {
-        setHeaders(resp, reader.getContentType(), slob.getId(), blobIdOrKey);
+        resp.setValue("Content-Type", reader.getContentType());
         ByteBuffer bytes = reader.getContent();
         resp.getByteChannel().write(bytes);
     }
@@ -405,11 +407,6 @@ public class Slobber implements Container {
         SocketAddress address = new InetSocketAddress(InetAddress.getByName(addrStr), 8013);
         connection.connect(address);
         return server;
-    }
-
-    private void setHeaders(Response resp, String contentType, UUID ownerId, String blobIdOrKey) throws IOException {
-        resp.setValue("Content-Type", contentType);
-        resp.setValue("ETag", mkETag(ownerId, URLEncoder.encode(blobIdOrKey, "UTF-8")));
     }
 
     private void notFound(Response resp) throws IOException {
@@ -430,12 +427,8 @@ public class Slobber implements Container {
         }
     }
 
-    private String mkETag(UUID ownerId, String blobId) {
-        return mkETag(ownerId.toString(), blobId);
-    }
-
-    private String mkETag(String ownerId, String blobId) {
-        return String.format("\"%s/%s\"", ownerId, blobId);
+    private String mkETag(UUID slobId) {
+        return String.format("\"%s\"", slobId);
     }
 
     public void handle(Request req, Response resp) {
