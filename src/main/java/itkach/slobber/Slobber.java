@@ -145,6 +145,18 @@ public class Slobber implements Container {
         return null;
     }
 
+    private Map<String, Object> toInfoItem(Slob s) {
+        Map<String, Object> data = new HashMap<String, Object>();
+        data.put("id", s.getId().toString());
+        data.put("compression", s.header.compression);
+        data.put("encoding", s.header.encoding);
+        data.put("blobCount", s.header.blobCount);
+        data.put("refCount", s.size());
+        data.put("contentTypes", s.header.contentTypes);
+        data.put("tags", s.getTags());
+        return data;
+    }
+
     public Slobber() {
 
         json.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -260,7 +272,7 @@ public class Slobber implements Container {
                 /*
 
                 /slob
-                    (application/json) return list of slob ids
+                    (application/json) return list of slob info items
 
                 /slob/{slob uuid}
                     (application/json) return slob info
@@ -291,14 +303,14 @@ public class Slobber implements Container {
                     resp.setValue("Content-Type", "application/json");
                     OutputStream out = resp.getOutputStream();
                     OutputStreamWriter os = new OutputStreamWriter(out, "UTF8");
-                    Map<String, List<String>> data = new HashMap<String, List<String>>();
-                    List<String> ids = new ArrayList<String>();
-                    data.put("ids", ids);
+                    Map data = new HashMap();
+                    List infoItems = new ArrayList();
+                    data.put("slobs", infoItems);
                     for (Slob s : slobs) {
-                        ids.add(s.getId().toString());
+                        infoItems.add(toInfoItem(s));
                     }
                     resp.setValue("Cache-Control", "no-cache");
-                    json.writeValue(os, ids);
+                    json.writeValue(os, data);
                     return;
                 }
 
@@ -315,23 +327,14 @@ public class Slobber implements Container {
 
                     Slob s = findSlob(slobIdOrUri);
 
-                    Map<String, Object> data = new HashMap<String, Object>();
                     if (s == null) {
                         resp.setStatus(Status.NOT_FOUND);
-                        json.writeValue(os, data);
+                        json.writeValue(os, new HashMap<String, Object>());
                         return;
                     }
 
-                    data.put("id", s.getId().toString());
-                    data.put("compression", s.header.compression);
-                    data.put("encoding", s.header.encoding);
-                    data.put("blobCount", s.header.blobCount);
-                    data.put("refCount", s.size());
-                    data.put("contentTypes", s.header.contentTypes);
-                    data.put("tags", s.getTags());
-
                     resp.setValue("Cache-Control", "no-cache");
-                    json.writeValue(os, data);
+                    json.writeValue(os, toInfoItem(s));
                     return;
                 }
 
