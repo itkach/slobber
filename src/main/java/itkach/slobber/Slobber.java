@@ -2,6 +2,7 @@ package itkach.slobber;
 
 import itkach.slob.Slob;
 
+import java.awt.Desktop;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
@@ -13,6 +14,7 @@ import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.net.URI;
 import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -259,9 +261,6 @@ public class Slobber implements Container {
         data.put("tags", s.getTags());
         return data;
     }
-
-
-
 
     public Slobber() {
 
@@ -515,9 +514,20 @@ public class Slobber implements Container {
         }
         int port = Integer.parseInt(System.getProperty("slobber.port", "8013"));
         String addr = System.getProperty("slobber.host", "127.0.0.1");
-        System.out.println(String.format("Listening at %s:%s", addr, port));
+        String url = String.format("http://%s:%s", addr, port);
+        System.out.println(String.format("Starting " + url));
         Slobber slobber = new Slobber();
         slobber.setSlobs(Arrays.asList(slobs));
         slobber.start(addr, port);
+        System.out.println("Started");
+        boolean browse = Boolean.getBoolean("slobber.browse");
+        if (browse) {
+            if (Desktop.isDesktopSupported()) {
+                Desktop.getDesktop().browse(URI.create(url));
+            }
+            else {
+                System.out.println("Desktop not supported, can't open browser");
+            }
+        }
     }
  }
