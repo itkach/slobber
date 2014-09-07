@@ -250,6 +250,7 @@ public class Slobber implements Container {
     private Map<String, Object> toInfoItem(Slob s) {
         Map<String, Object> data = new HashMap<String, Object>();
         data.put("id", s.getId().toString());
+        data.put("file", s.file.getAbsolutePath());
         data.put("compression", s.header.compression);
         data.put("encoding", s.header.encoding);
         data.put("blobCount", s.header.blobCount);
