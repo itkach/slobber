@@ -43,6 +43,8 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
 
+import javax.activation.MimetypesFileTypeMap;
+
 public class Slobber implements Container {
 
 
@@ -89,9 +91,109 @@ public class Slobber implements Container {
 
     }
 
+    static Map<String, String> MimeTypes = new HashMap<String, String>();
+
+    static {
+        MimeTypes.put("html", "text/html");
+        MimeTypes.put("js", "application/javascript");
+        MimeTypes.put("css", "text/css");
+        MimeTypes.put("json", "application/json");
+        MimeTypes.put("woff", "application/font-woff");
+        MimeTypes.put("svg", "image/svg+xml");
+        MimeTypes.put("png", "image/png");
+        MimeTypes.put("jpg", "image/jpeg");
+        MimeTypes.put("jpeg", "image/jpeg");
+        MimeTypes.put("ttf", "application/x-font-ttf");
+        MimeTypes.put("otf", "application/x-font-opentype");
+    }
+
+    static void pipe(InputStream in, OutputStream out) throws IOException {
+        while (true) {
+            int b = in.read();
+            if (b == -1) {
+                break;
+            }
+            out.write(b);
+        }
+    }
+
+    static class StaticContainer extends GETContainer {
+
+        private String staticDir;
+
+        StaticContainer(String staticDir) {
+            this.staticDir = staticDir;
+        }
+
+        @Override
+        protected void GET(Request req, Response resp)
+        throws Exception {
+            Path path = req.getPath();
+            String extension =  path.getExtension();
+            StringBuilder fsPath = new StringBuilder();
+            String[] pathSegments = path.getSegments();
+            for (int i = 1; i < pathSegments.length; i++) {
+                if (fsPath.length() > 0) {
+                    fsPath.append("/");
+                }
+                fsPath.append(pathSegments[i]);
+            }
+            File resourceFile = new File(staticDir, fsPath.toString());
+            if (resourceFile.isDirectory()) {
+                if (!path.getPath().endsWith("/")) {
+                    resp.setValue("Location", path.getPath() + "/");
+                    resp.setStatus(Status.MOVED_PERMANENTLY);
+                    return;
+                }
+                resourceFile = new File(resourceFile, "index.html");
+                extension = "html";
+            }
+            if (!resourceFile.exists()) {
+                notFound(resp);
+                return;
+            }
+
+            String mimeType = MimeTypes.get(extension);
+            InputStream is = new FileInputStream(resourceFile);
+            if (mimeType != null) {
+                resp.setValue("Content-Type", mimeType);
+            }
+            pipe(is, resp.getOutputStream());
+            is.close();
+        }
+    }
+
+    static class ResourceContainer extends GETContainer {
+
+        @Override
+        protected void GET(Request req, Response resp)
+                throws Exception {
+            Path path = req.getPath();
+            System.out.println("Got request: " + path);
+            String extension =  path.getExtension();
+            String resource = path.toString().substring(1);
+            if (resource.equals("")) {
+                resource = "index.html";
+            }
+            InputStream is = getClass().getClassLoader().getResourceAsStream(resource);
+            if (is == null) {
+                notFound(resp);
+                return;
+            }
+            String mimeType = MimeTypes.get(extension);
+            if (mimeType != null) {
+                resp.setValue("Content-Type", mimeType);
+            }
+            pipe(is, resp.getOutputStream());
+            is.close();
+        }
+    }
+
+
     private List<Slob> slobs = Collections.emptyList();
     private Map<String, Slob> slobMap = new HashMap<String, Slob>();
     private Map<String, Container> handlers = new HashMap<String, Container>();
+    private Container defaultResourceContainer = new ResourceContainer();
     private ObjectMapper json = new ObjectMapper();
 
 
@@ -157,6 +259,9 @@ public class Slobber implements Container {
         return data;
     }
 
+
+
+
     public Slobber() {
 
         json.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
@@ -180,61 +285,7 @@ public class Slobber implements Container {
                     staticDir = staticDirValue;
                 }
                 System.out.println(String.format("Mounting %s at /%s", staticDir, staticMountPoint));
-                handlers.put(staticMountPoint, new GETContainer() {
-
-                    Map<String, String> mimeTypes = new HashMap<String, String>();
-
-                    {
-                        mimeTypes.put("html", "text/html");
-                        mimeTypes.put("js", "application/javascript");
-                        mimeTypes.put("css", "text/css");
-                    }
-
-                    @Override
-                    protected void GET(Request req, Response resp)
-                            throws Exception {
-                        Path path = req.getPath();
-                        String extension =  path.getExtension();
-                        StringBuilder fsPath = new StringBuilder();
-                        String[] pathSegments = path.getSegments();
-                        for (int i = 1; i < pathSegments.length; i++) {
-                            if (fsPath.length() > 0) {
-                                fsPath.append("/");
-                            }
-                            fsPath.append(pathSegments[i]);
-                        }
-                        File resourceFile = new File(staticDir, fsPath.toString());
-                        if (resourceFile.isDirectory()) {
-                            if (!path.getPath().endsWith("/")) {
-                                resp.setValue("Location", path.getPath() + "/");
-                                resp.setStatus(Status.MOVED_PERMANENTLY);
-                                return;
-                            }
-                            resourceFile = new File(resourceFile, "index.html");
-                            extension = "html";
-                        }
-                        if (!resourceFile.exists()) {
-                            notFound(resp);
-                            return;
-                        }
-
-                        String mimeType = mimeTypes.get(extension);
-                        InputStream is = new FileInputStream(resourceFile);
-                        if (mimeType != null) {
-                            resp.setValue("Content-Type", mimeType);
-                        }
-                        OutputStream out = resp.getOutputStream();
-                        while (true) {
-                            byte [] buf = new byte[16384];
-                            int readCount = is.read(buf);
-                            if (readCount == -1) {
-                                break;
-                            }
-                            out.write(buf, 0, readCount);
-                        }
-                        is.close();
-                    }
-                });
+                handlers.put(staticMountPoint, new StaticContainer(staticDir));
             }
         }
 
@@ -395,6 +446,8 @@ public class Slobber implements Container {
                 notFound(resp);
             }
         });
+
+        handlers.put("res", new ResourceContainer());
     }
 
     private void serveContent(Response resp,
@@ -412,7 +465,7 @@ public class Slobber implements Container {
         return server;
     }
 
-    private void notFound(Response resp) throws IOException {
+    static void notFound(Response resp) throws IOException {
         resp.setStatus(Status.NOT_FOUND);
         resp.setValue("Content-Type", "text/plain");
         PrintStream body = resp.getPrintStream();
@@ -435,21 +488,22 @@ public class Slobber implements Container {
     }
 
     public void handle(Request req, Response resp) {
+        System.out.println(req.getMethod() + " " + req.getPath() + "?" + req.getQuery());
         String[] pathSegments = req.getPath().getSegments();
-        if (pathSegments.length > 0) {
-            String resourceName = pathSegments[0];
-            Container handler = this.handlers.get(resourceName);
-            if (handler == null) {
-                try {
-                    notFound(resp);
-                    resp.close();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
-            }
-            else {
-                handler.handle(req, resp);
-            }
+        String resourceName;
+        if (pathSegments.length == 0) {
+            resourceName = "";
+        }
+        else {
+            resourceName = pathSegments[0];
+        }
+        System.out.println("Looking for handler for '" + resourceName + "'");
+        Container handler = this.handlers.get(resourceName);
+        if (handler == null) {
+            defaultResourceContainer.handle(req, resp);
+        }
+        else {
+            handler.handle(req, resp);
         }
     }
 
@@ -460,9 +514,9 @@ public class Slobber implements Container {
         }
         int port = Integer.parseInt(System.getProperty("slobber.port", "8013"));
         String addr = System.getProperty("slobber.host", "127.0.0.1");
+        System.out.println(String.format("Listening at %s:%s", addr, port));
         Slobber slobber = new Slobber();
         slobber.setSlobs(Arrays.asList(slobs));
         slobber.start(addr, port);
-        System.out.println(String.format("Listening at %s:%s", addr, port));
     }
  }
