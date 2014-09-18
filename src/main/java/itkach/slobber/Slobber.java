@@ -394,8 +394,15 @@ public class Slobber implements Container {
                 String blobId = q.get("blob");
 
                 String key = q.get("key");
-                if (pathSegments.length == 3) {
-                    key = pathSegments[2];
+                if (pathSegments.length >= 3) {
+                    StringBuilder keyBuilder = new StringBuilder();
+                    for (int i = 2; i < pathSegments.length; i++) {
+                        keyBuilder.append(pathSegments[i]);
+                        if (i < pathSegments.length - 1) {
+                            keyBuilder.append('/');
+                        }
+                    }
+                    key = keyBuilder.toString();
                 }
 
                 String slobIdOrUri = null;
