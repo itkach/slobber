@@ -15,6 +15,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
+import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
@@ -375,7 +376,7 @@ public class Slobber implements Container {
                     OutputStreamWriter os = new OutputStreamWriter(out, "UTF8");
 
                     String slobIdOrUri = pathSegments[1];
-
+                    slobIdOrUri = URLDecoder.decode(slobIdOrUri, "UTF-8");
                     Slob s = findSlob(slobIdOrUri);
 
                     if (s == null) {
@@ -397,7 +398,8 @@ public class Slobber implements Container {
                 if (pathSegments.length >= 3) {
                     StringBuilder keyBuilder = new StringBuilder();
                     for (int i = 2; i < pathSegments.length; i++) {
-                        keyBuilder.append(pathSegments[i]);
+                        String decodedSegment = URLDecoder.decode(pathSegments[i], "UTF-8");
+                        keyBuilder.append(decodedSegment);
                         if (i < pathSegments.length - 1) {
                             keyBuilder.append('/');
                         }
@@ -408,6 +410,7 @@ public class Slobber implements Container {
                 String slobIdOrUri = null;
                 if (pathSegments.length >= 2) {
                     slobIdOrUri = pathSegments[1];
+                    slobIdOrUri = URLDecoder.decode(slobIdOrUri, "UTF-8");
                 }
 
                 Slob slob = getSlob(slobIdOrUri);
