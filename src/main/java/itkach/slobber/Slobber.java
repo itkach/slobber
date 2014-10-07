@@ -37,7 +37,6 @@ import org.simpleframework.http.Response;
 import org.simpleframework.http.Status;
 import org.simpleframework.http.core.Container;
 import org.simpleframework.http.core.ContainerServer;
-import org.simpleframework.http.parse.AddressParser;
 import org.simpleframework.transport.Server;
 import org.simpleframework.transport.connect.Connection;
 import org.simpleframework.transport.connect.SocketConnection;
@@ -45,8 +44,6 @@ import org.simpleframework.transport.connect.SocketConnection;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-
-import javax.activation.MimetypesFileTypeMap;
 
 public class Slobber implements Container {
 
@@ -122,26 +119,36 @@ public class Slobber implements Container {
 
     static class StaticContainer extends GETContainer {
 
-        private String staticDir;
+        private File staticRes;
 
-        StaticContainer(String staticDir) {
-            this.staticDir = staticDir;
+        StaticContainer(String staticName) {
+            this.staticRes = new File(staticName);
         }
 
         @Override
         protected void GET(Request req, Response resp)
         throws Exception {
+            if (!staticRes.exists()) {
+                notFound(resp);
+                return;
+            }
+            File resourceFile;
             Path path = req.getPath();
             String extension =  path.getExtension();
-            StringBuilder fsPath = new StringBuilder();
-            String[] pathSegments = path.getSegments();
-            for (int i = 1; i < pathSegments.length; i++) {
-                if (fsPath.length() > 0) {
-                    fsPath.append("/");
-                }
-                fsPath.append(pathSegments[i]);
+            if (staticRes.isFile()){
+                resourceFile = staticRes;
             }
-            File resourceFile = new File(staticDir, fsPath.toString());
+            else {
+                StringBuilder fsPath = new StringBuilder();
+                String[] pathSegments = path.getSegments();
+                for (int i = 1; i < pathSegments.length; i++) {
+                    if (fsPath.length() > 0) {
+                        fsPath.append("/");
+                    }
+                    fsPath.append(pathSegments[i]);
+                }
+                resourceFile = new File(staticRes, fsPath.toString());
+            }
             if (resourceFile.isDirectory()) {
                 if (!path.getPath().endsWith("/")) {
                     resp.setValue("Location", path.getPath() + "/");
@@ -275,18 +282,18 @@ public class Slobber implements Container {
         for (Entry <Object, Object> entry : propEntries) {
             String key = entry.getKey().toString();
             if (key.startsWith("slobber.static.")) {
-                final String staticDirValue = entry.getValue().toString();
+                final String staticResValue = entry.getValue().toString();
                 String[] parts = key.split("\\.", 3);
                 final String staticMountPoint = parts[2];
-                final String staticDir;
-                if (!staticDirValue.endsWith(File.separator)) {
-                    staticDir = staticDirValue + File.separator;
+                final String staticRes;
+                if (new File(staticResValue).isDirectory() && !staticResValue.endsWith(File.separator)) {
+                    staticRes = staticResValue + File.separator;
                 }
                 else {
-                    staticDir = staticDirValue;
+                    staticRes = staticResValue;
                 }
-                System.out.println(String.format("Mounting %s at /%s", staticDir, staticMountPoint));
-                handlers.put(staticMountPoint, new StaticContainer(staticDir));
+                System.out.println(String.format("Mounting %s at /%s", staticRes, staticMountPoint));
+                handlers.put(staticMountPoint, new StaticContainer(staticRes));
             }
         }
 
