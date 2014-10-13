@@ -22,11 +22,13 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.Properties;
+import java.util.Random;
 import java.util.Set;
 import java.util.UUID;
 
@@ -37,6 +39,7 @@ import org.simpleframework.http.Response;
 import org.simpleframework.http.Status;
 import org.simpleframework.http.core.Container;
 import org.simpleframework.http.core.ContainerServer;
+import org.simpleframework.http.parse.ContentTypeParser;
 import org.simpleframework.transport.Server;
 import org.simpleframework.transport.connect.Connection;
 import org.simpleframework.transport.connect.SocketConnection;
@@ -47,6 +50,8 @@ import com.fasterxml.jackson.databind.SerializationFeature;
 
 public class Slobber implements Container {
 
+
+    private final Random random;
 
     static abstract class GETContainer implements Container {
 
@@ -257,6 +262,37 @@ public class Slobber implements Container {
         return null;
     }
 
+
+    public Slob.Blob findRandom() {
+        Set<String> types = new HashSet<String>(2);
+        types.add("text/html");
+        types.add("text/plain");
+        return findRandom(types);
+    }
+
+    public Slob.Blob findRandom(Set<String> allowedContentTypes) {
+        Slob[] slobs = this.getSlobs();
+        if (slobs.length > 0) {
+            for (int i = 0; i < 100; i++) {
+                Slob slob = slobs[random.nextInt(slobs.length)];
+                int size = slob.size();
+                Slob.Blob blob = slob.get(random.nextInt(size));
+                String contentType = null;
+                try {
+                    contentType = blob.getContentType();
+                } catch (IOException e) {
+                    throw new RuntimeException(e);
+                }
+                ContentTypeParser ctParser = new ContentTypeParser(contentType);
+                String parsedContentType = ctParser.getType();
+                if (allowedContentTypes.contains(parsedContentType)) {
+                    return blob;
+                }
+            }
+        }
+        return null;
+    }
+
     private Map<String, Object> toInfoItem(Slob s) {
         Map<String, Object> data = new HashMap<String, Object>();
         data.put("id", s.getId().toString());
@@ -275,6 +311,8 @@ public class Slobber implements Container {
         json.configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         json.configure(SerializationFeature.INDENT_OUTPUT, true);
 
+        random = new Random();
+        
         Properties sysProps = System.getProperties();
 
         Set<Entry<Object, Object>> propEntries = sysProps.entrySet();
@@ -319,6 +357,25 @@ public class Slobber implements Container {
                 OutputStream out = response.getOutputStream();
                 OutputStreamWriter os = new OutputStreamWriter(out, "UTF8");
                 json.writeValue(os, items);
+                os.close();
+            }
+        });
+
+        handlers.put("random", new GETContainer() {
+            @Override
+            public void GET(Request request, Response response) throws Exception{
+                Slob.Blob blob = findRandom();
+                if (blob == null) {
+                    notFound(response);
+                    return;
+                }
+                Map<String, String> item = new HashMap<String, String>();
+                item.put("url", mkContentURL(blob));
+                item.put("label", blob.key);
+                response.setValue("Content-Type", "application/json");
+                OutputStream out = response.getOutputStream();
+                OutputStreamWriter os = new OutputStreamWriter(out, "UTF8");
+                json.writeValue(os, item);
                 os.close();
             }
         });
