@@ -373,6 +373,7 @@ public class Slobber implements Container {
                 item.put("url", mkContentURL(blob));
                 item.put("label", blob.key);
                 response.setValue("Content-Type", "application/json");
+                response.setValue("Cache-Control", "no-cache");
                 OutputStream out = response.getOutputStream();
                 OutputStreamWriter os = new OutputStreamWriter(out, "UTF8");
                 json.writeValue(os, item);
