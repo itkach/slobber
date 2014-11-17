@@ -233,16 +233,7 @@ public class Slobber implements Container {
 
     public String getSlobURI(String slobId) {
         Slob slob = getSlob(slobId);
-        return getURI(slob);
-    }
-
-    public String getURI(Slob slob) {
-        Map<String, String> tags = slob.getTags();
-        String uri = tags.get("uri");
-        if (uri == null) {
-            uri = "slob:" + slob.getId();
-        }
-        return uri;
+        return slob.getURI();
     }
 
     public Slob findSlob(String slobIdOrUri) {
@@ -255,7 +246,7 @@ public class Slobber implements Container {
 
     public Slob findSlobByURI(String slobURI) {
         for (Slob s : slobs) {
-            if (getURI(s).equals(slobURI)) {
+            if (s.getURI().equals(slobURI)) {
                 return s;
             }
         }
