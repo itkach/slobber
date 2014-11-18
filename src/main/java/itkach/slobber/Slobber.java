@@ -18,9 +18,12 @@ import java.net.URI;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.ByteBuffer;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.Iterator;
@@ -30,7 +33,14 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
+import java.util.TimeZone;
 import java.util.UUID;
+import java.util.logging.Formatter;
+import java.util.logging.Handler;
+import java.util.logging.Level;
+import java.util.logging.LogManager;
+import java.util.logging.LogRecord;
+import java.util.logging.Logger;
 
 import org.simpleframework.http.Path;
 import org.simpleframework.http.Query;
@@ -47,9 +57,11 @@ import org.simpleframework.transport.connect.SocketConnection;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.util.ISO8601DateFormat;
 
 public class Slobber implements Container {
 
+    final static Logger L = Logger.getLogger(Slobber.class.getName());
 
     private final Random random;
 
@@ -184,13 +196,13 @@ public class Slobber implements Container {
         protected void GET(Request req, Response resp)
                 throws Exception {
             Path path = req.getPath();
-            System.out.println("Got request: " + path);
+            L.fine("Got request: " + path);
             String extension =  path.getExtension();
             String resource = path.toString().substring(1);
             if (resource.equals("")) {
                 resource = "index.html";
             }
-            InputStream is = getClass().getClassLoader().getResourceAsStream(resource);
+            InputStream is = ResourceContainer.class.getClassLoader().getResourceAsStream(resource);
             if (is == null) {
                 notFound(resp);
                 return;
@@ -321,7 +333,7 @@ public class Slobber implements Container {
                 else {
                     staticRes = staticResValue;
                 }
-                System.out.println(String.format("Mounting %s at /%s", staticRes, staticMountPoint));
+                L.info(String.format("Mounting %s at /%s", staticRes, staticMountPoint));
                 handlers.put(staticMountPoint, new StaticContainer(staticRes));
             }
         }
@@ -554,7 +566,22 @@ public class Slobber implements Container {
     }
 
     public void handle(Request req, Response resp) {
-        System.out.println(req.getMethod() + " " + req.getPath() + "?" + req.getQuery());
+        if (L.isLoggable(Level.FINE)) {
+            L.fine(req.toString());
+        }
+        else
+        if (L.isLoggable(Level.INFO)) {
+            StringBuilder s = new StringBuilder();
+            s.append(req.getMethod());
+            s.append(" ");
+            s.append(req.getPath());
+            String qs = req.getQuery().toString();
+            if (qs.length() > 0) {
+                s.append("?");
+                s.append(qs);
+            }
+            L.info(s.toString());
+        }
         String[] pathSegments = req.getPath().getSegments();
         String resourceName;
         if (pathSegments.length == 0) {
@@ -563,7 +590,7 @@ public class Slobber implements Container {
         else {
             resourceName = pathSegments[0];
         }
-        System.out.println("Looking for handler for '" + resourceName + "'");
+        L.fine("Looking for handler for '" + resourceName + "'");
         Container handler = this.handlers.get(resourceName);
         if (handler == null) {
             defaultResourceContainer.handle(req, resp);
@@ -573,7 +600,28 @@ public class Slobber implements Container {
         }
     }
 
+    public static class LogFormatter extends Formatter {
+
+        private DateFormat df = new SimpleDateFormat("Y-M-d H:m:s.S");
+
+        @Override
+        public String format(LogRecord record) {
+            StringBuilder s = new StringBuilder();
+            Date dt = new Date(record.getMillis());
+            s.append(df.format(dt));
+            s.append(" ");
+            s.append(record.getMessage());
+            s.append('\n');
+            return s.toString();
+        }
+    }
+
     public static void main(String[] args) throws Exception {
+        LogFormatter formatter = new LogFormatter();
+        for (Handler h : Logger.getLogger("").getHandlers()) {
+            h.setFormatter(formatter);
+        }
+
         Slob[] slobs = new Slob[args.length];
         for (int i = 0; i < slobs.length; i++) {
             slobs[i] = new Slob(new File(args[i]));
@@ -581,18 +629,18 @@ public class Slobber implements Container {
         int port = Integer.parseInt(System.getProperty("slobber.port", "8013"));
         String addr = System.getProperty("slobber.host", "127.0.0.1");
         String url = String.format("http://%s:%s", addr, port);
-        System.out.println(String.format("Starting " + url));
         Slobber slobber = new Slobber();
         slobber.setSlobs(Arrays.asList(slobs));
         slobber.start(addr, port);
-        System.out.println("Started");
+        System.out.println("Listening at " + url);
+
         boolean browse = Boolean.getBoolean("slobber.browse");
         if (browse) {
             if (Desktop.isDesktopSupported()) {
                 Desktop.getDesktop().browse(URI.create(url));
             }
             else {
-                System.out.println("Desktop not supported, can't open browser");
+                L.warning("Desktop not supported, can't open browser");
             }
         }
     }
