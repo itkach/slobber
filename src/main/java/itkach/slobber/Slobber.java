@@ -602,7 +602,7 @@ public class Slobber implements Container {
 
     public static class LogFormatter extends Formatter {
 
-        private DateFormat df = new SimpleDateFormat("Y-M-d H:m:s.S");
+        private DateFormat df = new SimpleDateFormat("yyyy-MM-dd HH:mm:ss.SSS");
 
         @Override
         public String format(LogRecord record) {
