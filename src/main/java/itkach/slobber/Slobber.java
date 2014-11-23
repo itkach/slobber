@@ -15,6 +15,7 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
+import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.ByteBuffer;
@@ -554,9 +555,9 @@ public class Slobber implements Container {
         try {
             return String.format("/slob/%s/%s?blob=%s#%s",
                     b.owner.getId(),
-                    URLEncoder.encode(b.key, "UTF-8"),
+                    new URI(null, b.key, null).toASCIIString(),
                     b.id, b.fragment);
-        } catch (UnsupportedEncodingException e) {
+        } catch (URISyntaxException e) {
             throw new RuntimeException(e);
         }
     }
