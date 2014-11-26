@@ -1,6 +1,20 @@
 package itkach.slobber;
 
-import itkach.slob.Slob;
+import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+
+import org.simpleframework.http.Path;
+import org.simpleframework.http.Query;
+import org.simpleframework.http.Request;
+import org.simpleframework.http.Response;
+import org.simpleframework.http.Status;
+import org.simpleframework.http.core.Container;
+import org.simpleframework.http.core.ContainerServer;
+import org.simpleframework.http.parse.ContentTypeParser;
+import org.simpleframework.transport.Server;
+import org.simpleframework.transport.connect.Connection;
+import org.simpleframework.transport.connect.SocketConnection;
 
 import java.awt.Desktop;
 import java.io.File;
@@ -34,31 +48,14 @@ import java.util.Map.Entry;
 import java.util.Properties;
 import java.util.Random;
 import java.util.Set;
-import java.util.TimeZone;
 import java.util.UUID;
 import java.util.logging.Formatter;
 import java.util.logging.Handler;
 import java.util.logging.Level;
-import java.util.logging.LogManager;
 import java.util.logging.LogRecord;
 import java.util.logging.Logger;
 
-import org.simpleframework.http.Path;
-import org.simpleframework.http.Query;
-import org.simpleframework.http.Request;
-import org.simpleframework.http.Response;
-import org.simpleframework.http.Status;
-import org.simpleframework.http.core.Container;
-import org.simpleframework.http.core.ContainerServer;
-import org.simpleframework.http.parse.ContentTypeParser;
-import org.simpleframework.transport.Server;
-import org.simpleframework.transport.connect.Connection;
-import org.simpleframework.transport.connect.SocketConnection;
-
-import com.fasterxml.jackson.databind.DeserializationFeature;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.fasterxml.jackson.databind.SerializationFeature;
-import com.fasterxml.jackson.databind.util.ISO8601DateFormat;
+import itkach.slob.Slob;
 
 public class Slobber implements Container {
 
@@ -552,14 +549,10 @@ public class Slobber implements Container {
     }
 
     public static String mkContentURL(Slob.Blob b) {
-        try {
-            return String.format("/slob/%s/%s?blob=%s#%s",
+        return String.format("/slob/%s/%s?blob=%s#%s",
                     b.owner.getId(),
-                    new URI(null, b.key, null).toASCIIString(),
+                    EncodingUtil.encodeURIComponent(b.key),
                     b.id, b.fragment);
-        } catch (URISyntaxException e) {
-            throw new RuntimeException(e);
-        }
     }
 
     private String mkETag(UUID slobId) {
@@ -614,6 +607,78 @@ public class Slobber implements Container {
             s.append(record.getMessage());
             s.append('\n');
             return s.toString();
+        }
+    }
+
+
+    /**
+     * Utility class for JavaScript compatible UTF-8 encoding and decoding.
+     *
+     * @see http://stackoverflow.com/questions/607176/java-equivalent-to-javascripts-encodeuricomponent-that-produces-identical-output
+     * @author John Topley
+     */
+    static class EncodingUtil
+    {
+        /**
+         * Decodes the passed UTF-8 String using an algorithm that's compatible with
+         * JavaScript's <code>decodeURIComponent</code> function. Returns
+         * <code>null</code> if the String is <code>null</code>.
+         *
+         * @param s The UTF-8 encoded String to be decoded
+         * @return the decoded String
+         */
+        static String decodeURIComponent(String s)
+        {
+            if (s == null)
+            {
+                return null;
+            }
+
+            String result = null;
+
+            try
+            {
+                result = URLDecoder.decode(s, "UTF-8");
+            }
+
+            // This exception should never occur.
+            catch (UnsupportedEncodingException e)
+            {
+                result = s;
+            }
+
+            return result;
+        }
+
+        /**
+         * Encodes the passed String as UTF-8 using an algorithm that's compatible
+         * with JavaScript's <code>encodeURIComponent</code> function. Returns
+         * <code>null</code> if the String is <code>null</code>.
+         *
+         * @param s The String to be encoded
+         * @return the encoded String
+         */
+        static String encodeURIComponent(String s)
+        {
+            String result = null;
+
+            try
+            {
+                result = URLEncoder.encode(s, "UTF-8")
+                        .replaceAll("\\+", "%20")
+                        .replaceAll("\\%21", "!")
+                        .replaceAll("\\%27", "'")
+                        .replaceAll("\\%28", "(")
+                        .replaceAll("\\%29", ")")
+                        .replaceAll("\\%7E", "~");
+            }
+            // This exception should never occur.
+            catch (UnsupportedEncodingException e)
+            {
+                result = s;
+            }
+
+            return result;
         }
     }
 
