@@ -278,12 +278,7 @@ public class Slobber implements Container {
                 Slob slob = slobs[random.nextInt(slobs.length)];
                 int size = slob.size();
                 Slob.Blob blob = slob.get(random.nextInt(size));
-                String contentType = null;
-                try {
-                    contentType = blob.getContentType();
-                } catch (IOException e) {
-                    throw new RuntimeException(e);
-                }
+                String contentType = blob.getContentType();
                 ContentTypeParser ctParser = new ContentTypeParser(contentType);
                 String parsedContentType = ctParser.getType();
                 if (allowedContentTypes.contains(parsedContentType)) {
@@ -493,7 +488,7 @@ public class Slobber implements Container {
 
                 if (isSlobId && blobId != null) {
                     resp.setValue("Cache-Control", "max-age=31556926");
-                    Slob.ContentReader reader = slob.get(blobId);
+                    Slob.Content reader = slob.getContent(blobId);
                     serveContent(resp, reader);
                     return;
                 }
@@ -515,7 +510,7 @@ public class Slobber implements Container {
                         resp.setValue("Cache-Control", "max-age=600");
                         resp.setValue("ETag", mkETag(slob.getId()));
                     }
-                    serveContent(resp, blob);
+                    serveContent(resp, blob.getContent());
                     return;
                 }
 
@@ -527,9 +522,9 @@ public class Slobber implements Container {
     }
 
     private void serveContent(Response resp,
-                              Slob.ContentReader reader) throws IOException {
-        resp.setValue("Content-Type", reader.getContentType());
-        ByteBuffer bytes = reader.getContent();
+                              Slob.Content content) throws IOException {
+        resp.setValue("Content-Type", content.type);
+        ByteBuffer bytes = content.data;
         resp.getByteChannel().write(bytes);
     }
 
