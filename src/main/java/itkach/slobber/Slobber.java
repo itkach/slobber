@@ -265,14 +265,17 @@ public class Slobber implements Container {
 
 
     public Slob.Blob findRandom() {
+        return findRandom(this.getSlobs());
+    }
+
+    public Slob.Blob findRandom(Slob[] slobs) {
         Set<String> types = new HashSet<String>(2);
         types.add("text/html");
         types.add("text/plain");
-        return findRandom(types);
+        return findRandom(types, slobs);
     }
 
-    public Slob.Blob findRandom(Set<String> allowedContentTypes) {
-        Slob[] slobs = this.getSlobs();
+    public Slob.Blob findRandom(Set<String> allowedContentTypes, Slob[] slobs) {
         if (slobs.length > 0) {
             for (int i = 0; i < 100; i++) {
                 Slob slob = slobs[random.nextInt(slobs.length)];
