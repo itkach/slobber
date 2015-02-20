@@ -256,6 +256,9 @@ public class Slobber implements Container {
 
     public Slob findSlobByURI(String slobURI) {
         for (Slob s : slobs) {
+            if (!s.file.exists()) {
+                continue;
+            }
             if (s.getURI().equals(slobURI)) {
                 return s;
             }
