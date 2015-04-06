@@ -3,6 +3,7 @@ package itkach.slobber;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
+import com.ibm.icu.text.Collator;
 
 import org.simpleframework.http.Path;
 import org.simpleframework.http.Query;
@@ -39,6 +40,7 @@ import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.HashSet;
@@ -222,6 +224,16 @@ public class Slobber implements Container {
     private Container defaultResourceContainer = new ResourceContainer();
     private ObjectMapper json = new ObjectMapper();
 
+    private Comparator<Slob> createTimeComparator = new Comparator<Slob>() {
+        @Override
+        public int compare(Slob s1, Slob s2) {
+            String ts1 = s1.getTags().get("created.at");
+            String ts2 = s2.getTags().get("created.at");
+            if (ts2 == null) ts2 = "";
+            if (ts1 == null) ts1 = "";
+            return ts2.compareTo(ts1);
+        }
+    };
 
     public Slob getSlob(String slobId) {
         return slobMap.get(slobId);
@@ -265,6 +277,20 @@ public class Slobber implements Container {
             }
         }
         return null;
+    }
+
+
+    public List<Slob> findAllSlobsByURI(String slobURI) {
+        List<Slob> result = new ArrayList<Slob>();
+        for (Slob s : slobs) {
+            if (!s.file.exists()) {
+                continue;
+            }
+            if (s.getURI().equals(slobURI)) {
+                result.add(s);
+            }
+        }
+        return result;
     }
 
 
@@ -507,7 +533,14 @@ public class Slobber implements Container {
                     }
                 }
 
-                Iterator<Slob.Blob> result = Slob.find(key, slob);
+
+                List<Slob> candidates = findAllSlobsByURI(slob.getURI());
+
+                Collections.sort(candidates, createTimeComparator);
+
+                Iterator<Slob.Blob> result = Slob.find(key, 1, slob,
+                            candidates.toArray(new Slob[candidates.size()]),
+                            Collator.QUATERNARY);
                 if (result.hasNext()) {
                     Slob.Blob blob = result.next();
                     if (isSlobId) {
