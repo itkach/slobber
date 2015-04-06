@@ -19,6 +19,7 @@ import org.simpleframework.transport.connect.SocketConnection;
 import java.awt.Desktop;
 import java.io.File;
 import java.io.FileInputStream;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -689,15 +690,30 @@ public class Slobber implements Container {
             h.setFormatter(formatter);
         }
 
-        Slob[] slobs = new Slob[args.length];
-        for (int i = 0; i < slobs.length; i++) {
-            slobs[i] = new Slob(new File(args[i]));
+        FilenameFilter slobNameFilter = new FilenameFilter() {
+            @Override
+            public boolean accept(File dir, String name) {
+                return name.toLowerCase().endsWith(".slob");
+            }
+        };
+
+        List<Slob> slobs = new ArrayList<Slob>();
+        for (int i = 0; i < args.length; i++) {
+            File f = new File(args[i]);
+            if (f.isDirectory()) {
+                for (String name : f.list(slobNameFilter)) {
+                    slobs.add(new Slob(new File(f, name)));
+                }
+            }
+            else {
+                slobs.add(new Slob(f));
+            }
         }
         int port = Integer.parseInt(System.getProperty("slobber.port", "8013"));
         String addr = System.getProperty("slobber.host", "127.0.0.1");
         String url = String.format("http://%s:%s", addr, port);
         Slobber slobber = new Slobber();
-        slobber.setSlobs(Arrays.asList(slobs));
+        slobber.setSlobs(slobs);
         slobber.start(addr, port);
         System.out.println("Listening at " + url);
 
