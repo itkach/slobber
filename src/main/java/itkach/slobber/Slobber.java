@@ -373,9 +373,17 @@ public class Slobber implements Container {
                     notFound(response);
                     return;
                 }
+                int limit = q.getInteger("limit") ;
+                if (limit > 10000) {
+                    response.setCode(413);
+                    return;
+                }
+                if (limit <= 0) {
+                    limit = 100;
+                }
                 Iterator<Slob.Blob> result = Slob.find(key, getSlobs());
                 List<Map<String, String>> items = new ArrayList<Map<String, String>>();
-                while (result.hasNext()) {
+                while (result.hasNext() && items.size() <= limit) {
                     Slob.Blob b = result.next();
                     Map<String, String> item = new HashMap<String, String>();
                     item.put("url", mkContentURL(b));
