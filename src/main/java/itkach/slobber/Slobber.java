@@ -388,6 +388,7 @@ public class Slobber implements Container {
                     Map<String, String> item = new HashMap<String, String>();
                     item.put("url", mkContentURL(b));
                     item.put("label", b.key);
+                    item.put("dictLabel", b.owner.getTags().get("label"));
                     items.add(item);
                 }
                 response.setValue("Content-Type", "application/json");
