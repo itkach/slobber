@@ -547,9 +547,9 @@ public class Slobber implements Container {
 
                 Collections.sort(candidates, createTimeComparator);
 
-                Iterator<Slob.Blob> result = Slob.find(key, 1, slob,
-                            candidates.toArray(new Slob[candidates.size()]),
-                            Collator.QUATERNARY);
+                Iterator<Slob.Blob> result = Slob.find(key,
+                        candidates.toArray(new Slob[candidates.size()]),
+                        slob, Slob.Strength.SECONDARY);
                 if (result.hasNext()) {
                     Slob.Blob blob = result.next();
                     if (isSlobId) {
