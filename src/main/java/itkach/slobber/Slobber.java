@@ -607,19 +607,6 @@ public class Slobber implements Container {
         if (L.isLoggable(Level.FINE)) {
             L.fine(req.toString());
         }
-        else
-        if (L.isLoggable(Level.INFO)) {
-            StringBuilder s = new StringBuilder();
-            s.append(req.getMethod());
-            s.append(" ");
-            s.append(req.getPath());
-            String qs = req.getQuery().toString();
-            if (qs.length() > 0) {
-                s.append("?");
-                s.append(qs);
-            }
-            L.info(s.toString());
-        }
         String[] pathSegments = req.getPath().getSegments();
         String resourceName;
         if (pathSegments.length == 0) {
@@ -635,6 +622,20 @@ public class Slobber implements Container {
         }
         else {
             handler.handle(req, resp);
+        }
+        if (L.isLoggable(Level.INFO)) {
+            StringBuilder s = new StringBuilder();
+            s.append(req.getMethod());
+            s.append(" ");
+            s.append(req.getPath());
+            String qs = req.getQuery().toString();
+            if (qs.length() > 0) {
+                s.append("?");
+                s.append(qs);
+            }
+            s.append(" ");
+            s.append(resp.getCode());
+            L.info(s.toString());
         }
     }
 
