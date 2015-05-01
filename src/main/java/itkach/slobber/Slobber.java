@@ -727,30 +727,33 @@ public class Slobber implements Container {
         }
     }
 
+    static FilenameFilter slobNameFilter = new FilenameFilter() {
+        @Override
+        public boolean accept(File dir, String name) {
+            return name.toLowerCase().endsWith(".slob");
+        }
+    };
+
+    static void add(List<Slob> slobs, File file) throws IOException {
+        if (file.isDirectory()) {
+            for (String name : file.list(slobNameFilter)) {
+                add(slobs, new File(file, name));
+            }
+        }
+        else {
+            slobs.add(new Slob(file));
+        }
+    }
+
     public static void main(String[] args) throws Exception {
         LogFormatter formatter = new LogFormatter();
         for (Handler h : Logger.getLogger("").getHandlers()) {
             h.setFormatter(formatter);
         }
-
-        FilenameFilter slobNameFilter = new FilenameFilter() {
-            @Override
-            public boolean accept(File dir, String name) {
-                return name.toLowerCase().endsWith(".slob");
-            }
-        };
-
         List<Slob> slobs = new ArrayList<Slob>();
         for (int i = 0; i < args.length; i++) {
             File f = new File(args[i]);
-            if (f.isDirectory()) {
-                for (String name : f.list(slobNameFilter)) {
-                    slobs.add(new Slob(new File(f, name)));
-                }
-            }
-            else {
-                slobs.add(new Slob(f));
-            }
+            add(slobs, f);
         }
         int port = Integer.parseInt(System.getProperty("slobber.port", "8013"));
         String addr = System.getProperty("slobber.host", "127.0.0.1");
