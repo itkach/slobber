@@ -123,6 +123,7 @@ public class Slobber implements Container {
         MimeTypes.put("jpeg", "image/jpeg");
         MimeTypes.put("ttf", "application/x-font-ttf");
         MimeTypes.put("otf", "application/x-font-opentype");
+        MimeTypes.put("ico", "image/x-icon");
     }
 
     static void pipe(InputStream in, OutputStream out) throws IOException {
