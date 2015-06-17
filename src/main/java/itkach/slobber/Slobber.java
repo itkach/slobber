@@ -213,6 +213,7 @@ public class Slobber implements Container {
             if (mimeType != null) {
                 resp.setValue("Content-Type", mimeType);
             }
+            resp.setValue("Cache-Control", "public, max-age=86400");
             pipe(is, resp.getOutputStream());
             is.close();
         }
