@@ -3,7 +3,6 @@ package itkach.slobber;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.databind.SerializationFeature;
-import com.ibm.icu.text.Collator;
 
 import org.simpleframework.http.Path;
 import org.simpleframework.http.Query;
@@ -26,19 +25,18 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.OutputStreamWriter;
 import java.io.PrintStream;
+import java.io.RandomAccessFile;
 import java.io.UnsupportedEncodingException;
 import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
-import java.net.URISyntaxException;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.ByteBuffer;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.Collections;
 import java.util.Comparator;
 import java.util.Date;
@@ -271,9 +269,6 @@ public class Slobber implements Container {
 
     public Slob findSlobByURI(String slobURI) {
         for (Slob s : slobs) {
-            if (!s.file.exists()) {
-                continue;
-            }
             if (s.getURI().equals(slobURI)) {
                 return s;
             }
@@ -285,9 +280,6 @@ public class Slobber implements Container {
     public List<Slob> findAllSlobsByURI(String slobURI) {
         List<Slob> result = new ArrayList<Slob>();
         for (Slob s : slobs) {
-            if (!s.file.exists()) {
-                continue;
-            }
             if (s.getURI().equals(slobURI)) {
                 result.add(s);
             }
@@ -327,7 +319,7 @@ public class Slobber implements Container {
     private Map<String, Object> toInfoItem(Slob s) {
         Map<String, Object> data = new HashMap<String, Object>();
         data.put("id", s.getId().toString());
-        data.put("file", s.file.getAbsolutePath());
+        data.put("file", s.fileURI);
         data.put("compression", s.header.compression);
         data.put("encoding", s.header.encoding);
         data.put("blobCount", s.header.blobCount);
@@ -343,7 +335,7 @@ public class Slobber implements Container {
         json.configure(SerializationFeature.INDENT_OUTPUT, true);
 
         random = new Random();
-        
+
         Properties sysProps = System.getProperties();
 
         Set<Entry<Object, Object>> propEntries = sysProps.entrySet();
@@ -661,7 +653,7 @@ public class Slobber implements Container {
     /**
      * Utility class for JavaScript compatible UTF-8 encoding and decoding.
      *
-     * @see http://stackoverflow.com/questions/607176/java-equivalent-to-javascripts-encodeuricomponent-that-produces-identical-output
+     * @see <a href="http://stackoverflow.com/questions/607176/java-equivalent-to-javascripts-encodeuricomponent-that-produces-identical-output">StackOverflow</a>
      * @author John Topley
      */
     static class EncodingUtil
@@ -736,15 +728,24 @@ public class Slobber implements Container {
         }
     };
 
-    static void add(List<Slob> slobs, File file) throws IOException {
+    static void findDictionaryFiles(List<File> files, File file) {
         if (file.isDirectory()) {
             for (String name : file.list(slobNameFilter)) {
-                add(slobs, new File(file, name));
+                findDictionaryFiles(files, new File(file, name));
             }
         }
         else {
-            slobs.add(new Slob(file));
+            files.add(file);
         }
+    }
+
+    static List<File>  findDictionaryFiles(String[] paths) {
+        List<File> files = new ArrayList<>();
+        for (int i = 0; i < paths.length; i++) {
+            File f = new File(paths[i]);
+            findDictionaryFiles(files, f);
+        }
+        return files;
     }
 
     public static void main(String[] args) throws Exception {
@@ -752,11 +753,15 @@ public class Slobber implements Container {
         for (Handler h : Logger.getLogger("").getHandlers()) {
             h.setFormatter(formatter);
         }
-        List<Slob> slobs = new ArrayList<Slob>();
-        for (int i = 0; i < args.length; i++) {
-            File f = new File(args[i]);
-            add(slobs, f);
+
+        List<File> files = findDictionaryFiles(args);
+
+        List<Slob> slobs = new ArrayList<>();
+
+        for (File f : files) {
+            slobs.add(new Slob(new RandomAccessFile(f, "r").getChannel(), f.getAbsolutePath()));
         }
+
         int port = Integer.parseInt(System.getProperty("slobber.port", "8013"));
         String addr = System.getProperty("slobber.host", "127.0.0.1");
         String url = String.format("http://%s:%s", addr, port);
