@@ -12,12 +12,7 @@ jar {
 
     from {
       if (System.getenv('FATJAR') == '1') {
-        configurations.compile.collect {
-          it.isDirectory() ? it : zipTree(it)
-        }
-        configurations.runtime.collect {
-          it.isDirectory() ? it : zipTree(it)
-        }
+        configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
       }
     }
 
@@ -31,9 +26,9 @@ jar {
 
 
 dependencies {
-    compile 'com.fasterxml.jackson.core:jackson-databind:2.4.2'
-    compile 'com.fasterxml.jackson.core:jackson-core:2.4.2'
-    compile 'com.fasterxml.jackson.core:jackson-annotations:2.4.2'
-    compile files('libs/simple-5.1.7.1.itkach.jar')
-    compile project(':slobj')
- }
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.4.2'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.4.2'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.4.2'
+    implementation files('libs/simple-5.1.7.1.itkach.jar')
+    implementation project(':slobj')
+}

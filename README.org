@@ -18,7 +18,7 @@
 
    #+BEGIN_SRC sh
    cd slobber
-   gradle -c standalaone-settings.gradle build
+   gradle -c standalone-settings.gradle build
    #+END_SRC
 
   To build a fat jar that includes all dependencies:
@@ -36,7 +36,7 @@
 
   By default Slobber listens on port 8013 at 127.0.0.1
   interface. Specify /slobber.port/ Java property to start on a
-  different port.
+  different port and /slobber.host/ to start on a different interface.
 
   To find keys starting with letter A:
 
