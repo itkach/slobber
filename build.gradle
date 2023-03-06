@@ -1,7 +1,13 @@
-apply plugin: 'java'
-apply plugin: 'eclipse'
+plugins {
+    id 'java-library'
+}
 
-version = '0.10'
+def getVersionName = {
+    return "git describe --tags".execute().text.trim()
+}
+
+version = getVersionName()
+
 sourceCompatibility = '1.7'
 
 repositories {
@@ -11,14 +17,9 @@ repositories {
 jar {
 
     from {
-      if (System.getenv('FATJAR') == '1') {
-        configurations.compile.collect {
-          it.isDirectory() ? it : zipTree(it)
+        if (System.getenv('FATJAR') == '1') {
+            configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
         }
-        configurations.runtime.collect {
-          it.isDirectory() ? it : zipTree(it)
-        }
-      }
     }
 
     manifest {
@@ -31,9 +32,9 @@ jar {
 
 
 dependencies {
-    compile 'com.fasterxml.jackson.core:jackson-databind:2.4.2'
-    compile 'com.fasterxml.jackson.core:jackson-core:2.4.2'
-    compile 'com.fasterxml.jackson.core:jackson-annotations:2.4.2'
-    compile files('libs/simple-5.1.7.1.itkach.jar')
-    compile project(':slobj')
+    implementation 'com.fasterxml.jackson.core:jackson-databind:2.4.2'
+    implementation 'com.fasterxml.jackson.core:jackson-core:2.4.2'
+    implementation 'com.fasterxml.jackson.core:jackson-annotations:2.4.2'
+    api files('libs/simple-5.1.7.1.itkach.jar')
+    api project(':slobj')
  }
