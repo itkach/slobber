@@ -16,6 +16,8 @@ repositories {
 
 jar {
 
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+
     from {
         if (System.getenv('FATJAR') == '1') {
             configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
