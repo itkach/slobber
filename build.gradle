@@ -14,38 +14,41 @@ repositories {
     mavenCentral()
 }
 
-jar {
-
-    duplicatesStrategy = DuplicatesStrategy.INCLUDE
-
-    manifest {
-        attributes(
+def manifestAttributes = [
         "Main-Class": "itkach.slobber.Slobber",
         "Implementation-Title": "Slobber",
-        "Implementation-Version": version)
+        "Implementation-Version": version
+]
+
+jar {
+    manifest {
+        attributes manifestAttributes
     }
 }
 
 
-task fatJar(type: Jar) {
-    manifest.from jar.manifest
+tasks.register('uberJar', Jar) {
+    archiveClassifier = 'all'
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
-    archiveBaseName = project.name + '-all'
-    from {
-        configurations.runtimeClasspath.collect {
-            it.isDirectory() ? it : zipTree(it)
-        }
+    from sourceSets.main.output
+
+    manifest {
+        attributes manifestAttributes
     }
-    project(":slobj").file("exclude.txt").eachLine {
+
+    dependsOn configurations.runtimeClasspath
+    from {
+        configurations.runtimeClasspath.findAll { it.name.endsWith('jar') }.collect { zipTree(it) }
+    }
+    def excludeList = project(":slobj").file("exclude.txt")
+    println("Excluding files listed in " + excludeList.path)
+    excludeList.eachLine {
         line ->
-            println line
             if (!line.startsWith("#")) {
                 exclude line.trim()
             }
     }
-    with jar
 }
-
 
 dependencies {
     implementation 'com.fasterxml.jackson.core:jackson-databind:2.4.2'
