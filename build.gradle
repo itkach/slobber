@@ -18,18 +18,25 @@ jar {
 
     duplicatesStrategy = DuplicatesStrategy.INCLUDE
 
-    from {
-        if (System.getenv('FATJAR') == '1') {
-            configurations.runtimeClasspath.collect { it.isDirectory() ? it : zipTree(it) }
-        }
-    }
-
     manifest {
         attributes(
         "Main-Class": "itkach.slobber.Slobber",
         "Implementation-Title": "Slobber",
         "Implementation-Version": version)
     }
+}
+
+
+task fatJar(type: Jar) {
+    manifest.from jar.manifest
+    duplicatesStrategy = DuplicatesStrategy.INCLUDE
+    archiveBaseName = project.name + '-all'
+    from {
+        configurations.runtimeClasspath.collect {
+            it.isDirectory() ? it : zipTree(it)
+        }
+    }
+    with jar
 }
 
 
