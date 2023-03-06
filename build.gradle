@@ -36,7 +36,7 @@ task fatJar(type: Jar) {
             it.isDirectory() ? it : zipTree(it)
         }
     }
-    project("slobj").file("exclude.txt").eachLine {
+    project(":slobj").file("exclude.txt").eachLine {
         line ->
             println line
             if (!line.startsWith("#")) {
