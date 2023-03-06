@@ -2,41 +2,30 @@
   Slobber is a web service that allows to find and retrieve content
   from [[https://github.com/itkach/slob][slob]] files. Slobber is written in Java.
 
-  Slobber depends on [[https://github.com/itkach/slobj][SlobJ]]. Get it first:
+  To build:
 
    #+BEGIN_SRC sh
-   git clone https://github.com/itkach/slobj.git
+
+     # clone slobj and slobber sources
+     git clone https://github.com/itkach/slobj.git
+     git clone https://github.com/itkach/slobber.git
+
+     #build fat jar in slobber directory
+     cd slobber
+     ./gradlew uberJar
+
    #+END_SRC
 
-  To build, install [[http://www.gradle.org/][Gradle]], then get the source code:
+  To run Slobber from the fat jar and have it serve a slob file located
+  at /~/Downloads/enwiki-20230201.slob/:
 
    #+BEGIN_SRC sh
-   git clone https://github.com/itkach/slobber.git
-   #+END_SRC
-
-  then build:
-
-   #+BEGIN_SRC sh
-   cd slobber
-   gradle -c standalaone-settings.gradle build
-   #+END_SRC
-
-  To build a fat jar that includes all dependencies:
-
-   #+BEGIN_SRC sh
-   FATJAR=1 gradle -c standalaone-settings.gradle build
-   #+END_SRC
-
-  To run Slobber from a fat jar and have it serve a slob file located
-  at /~/Downloads/simplewiki-20141002.slob/:
-
-   #+BEGIN_SRC sh
-   java -jar build/libs/slobber-0.3.jar ~/Downloads/simplewiki-20141002.slob
+   java -jar build/libs/slobber-0.11-all.jar ~/Downloads/enwiki-20230201.slob
    #+END_SRC
 
   By default Slobber listens on port 8013 at 127.0.0.1
   interface. Specify /slobber.port/ Java property to start on a
-  different port.
+  different port and /slobber.host/ to start on a different interface.
 
   To find keys starting with letter A:
 
