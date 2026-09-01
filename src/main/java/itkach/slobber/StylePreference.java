@@ -59,7 +59,7 @@ import java.util.regex.Pattern;
  * is the same shape a browser would already reconstruct from the
  * original bytes anyway.
  */
-class StylePreference {
+public class StylePreference {
 
     private static final Pattern URI_SCHEME =
             Pattern.compile("^[a-zA-Z][a-zA-Z0-9+.\\-]*:");
@@ -118,7 +118,16 @@ class StylePreference {
         return !URI_SCHEME.matcher(href).find();
     }
 
-    private static String withStyleParam(String href, String styleTitle) {
+    /**
+     * Adds or replaces the "style" query parameter on href, inserting it
+     * before any fragment. Public so aard2-android can use the same
+     * logic to bake a style preference into the very first request URL
+     * it constructs (see Application.getUrl(Blob)) - without this, the
+     * page loads with the default style first and only gets corrected
+     * after the fact by this class's own server-side rewriting, once
+     * the user follows a link out of it.
+     */
+    public static String withStyleParam(String href, String styleTitle) {
         int hashIndex = href.indexOf('#');
         String fragment = hashIndex == -1 ? "" : href.substring(hashIndex);
         String base = hashIndex == -1 ? href : href.substring(0, hashIndex);
