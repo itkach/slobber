@@ -32,6 +32,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.SocketAddress;
 import java.net.URI;
+import java.net.URL;
+import java.net.URLConnection;
 import java.net.URLDecoder;
 import java.net.URLEncoder;
 import java.nio.ByteBuffer;
@@ -203,8 +205,8 @@ public class Slobber implements Container {
             if (resource.equals("")) {
                 resource = "index.html";
             }
-            InputStream is = ResourceContainer.class.getClassLoader().getResourceAsStream(resource);
-            if (is == null) {
+            URL url = ResourceContainer.class.getClassLoader().getResource(resource);
+            if (url == null) {
                 notFound(resp);
                 return;
             }
@@ -212,7 +214,24 @@ public class Slobber implements Container {
             if (mimeType != null) {
                 resp.setValue("Content-Type", mimeType);
             }
-            resp.setValue("Cache-Control", "public, max-age=86400");
+            // These are the bundled UI assets (index.html, script.js, ...), which
+            // only change when the jar itself is replaced - i.e. on an upgrade.
+            // A fixed max-age kept serving the old script.js until it expired, so
+            // a freshly upgraded server's assets wouldn't take effect until the
+            // browser's cache lapsed or the user force-reloaded. no-cache plus an
+            // mtime+size validator (same idiom as /user-styles) makes the browser
+            // revalidate every use instead: unchanged assets answer a cheap 304,
+            // while an upgrade changes the ETag and serves the new asset at once.
+            URLConnection conn = url.openConnection();
+            String etag = String.format("\"%d-%d\"",
+                    conn.getLastModified(), conn.getContentLengthLong());
+            resp.setValue("Cache-Control", "no-cache");
+            resp.setValue("ETag", etag);
+            if (etag.equals(req.getValue("If-None-Match"))) {
+                resp.setStatus(Status.NOT_MODIFIED);
+                return;
+            }
+            InputStream is = conn.getInputStream();
             pipe(is, resp.getOutputStream());
             is.close();
         }
