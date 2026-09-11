@@ -17,6 +17,7 @@ import org.simpleframework.transport.connect.Connection;
 import org.simpleframework.transport.connect.SocketConnection;
 
 import java.awt.Desktop;
+import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FilenameFilter;
@@ -224,6 +225,14 @@ public class Slobber implements Container {
     private Container defaultResourceContainer = new ResourceContainer();
     private ObjectMapper json = new ObjectMapper();
 
+    // Directory of user-provided CSS files served flat under /user-styles. When
+    // a request asks for ?style=<name> and <name> is a .css file here, a <link>
+    // to /user-styles/<name> is injected into the served HTML (see
+    // serveContent/StylePreference). Set from the slobber.styleDir system
+    // property (aard2-web command line) or via setStyleDir (aard2-android,
+    // which points it at its own app data).
+    private File styleDir;
+
     private Comparator<Slob> createTimeComparator = new Comparator<Slob>() {
         @Override
         public int compare(Slob s1, Slob s2) {
@@ -251,6 +260,87 @@ public class Slobber implements Container {
         this.slobs = newSlobs;
         for (Slob s : this.slobs) {
             slobMap.put(s.getId().toString(), s);
+        }
+    }
+
+    public void setStyleDir(File dir) {
+        this.styleDir = dir;
+    }
+
+    public File getStyleDir() {
+        return styleDir;
+    }
+
+    // The user style file names (.css files directly in styleDir), sorted.
+    // The name is the plain file name, extension and all - it doubles as the
+    // style's identifier in ?style= and /user-styles/<name>. Empty when no
+    // style directory is configured or it holds no such files.
+    public List<String> listUserStyles() {
+        List<String> names = new ArrayList<String>();
+        if (styleDir != null && styleDir.isDirectory()) {
+            File[] files = styleDir.listFiles();
+            if (files != null) {
+                for (File f : files) {
+                    if (f.isFile() && f.getName().endsWith(".css")) {
+                        names.add(f.getName());
+                    }
+                }
+            }
+        }
+        Collections.sort(names);
+        return names;
+    }
+
+    // The user style file with the given name, or null if there's no style
+    // directory or the name doesn't resolve to a .css file directly inside it.
+    // Requiring the resolved file's parent to be exactly styleDir keeps the
+    // directory flat and rules out path traversal in a single check.
+    private File getUserStyleFile(String name) {
+        if (styleDir == null || name == null || name.isEmpty()) {
+            return null;
+        }
+        try {
+            File dir = styleDir.getCanonicalFile();
+            File file = new File(dir, name).getCanonicalFile();
+            if (file.isFile() && file.getName().endsWith(".css")
+                    && dir.equals(file.getParentFile())) {
+                return file;
+            }
+        } catch (IOException e) {
+            L.warning("Failed to resolve user style '" + name + "': " + e);
+        }
+        return null;
+    }
+
+    // The href of the user style with the given name, pointing at this server's
+    // own /user-styles/<name> route, or null if there is no such user style.
+    private String getUserStyleHref(String name) {
+        return getUserStyleFile(name) == null ? null
+                : "/user-styles/" + EncodingUtil.encodeURIComponent(name);
+    }
+
+    // CSS text of the user style with the given name, or null if there is none.
+    private String getUserStyleCss(String name) {
+        File file = getUserStyleFile(name);
+        if (file == null) {
+            return null;
+        }
+        try {
+            FileInputStream in = new FileInputStream(file);
+            try {
+                ByteArrayOutputStream bos = new ByteArrayOutputStream();
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) != -1) {
+                    bos.write(buf, 0, n);
+                }
+                return new String(bos.toByteArray(), "UTF-8");
+            } finally {
+                in.close();
+            }
+        } catch (IOException e) {
+            L.warning("Failed to read user style '" + name + "': " + e);
+            return null;
         }
     }
 
@@ -338,6 +428,11 @@ public class Slobber implements Container {
         random = new Random();
 
         Properties sysProps = System.getProperties();
+
+        String styleDirProp = sysProps.getProperty("slobber.styleDir");
+        if (styleDirProp != null && !styleDirProp.isEmpty()) {
+            setStyleDir(new File(styleDirProp));
+        }
 
         Set<Entry<Object, Object>> propEntries = sysProps.entrySet();
 
@@ -567,6 +662,54 @@ public class Slobber implements Container {
         });
 
         handlers.put("res", new ResourceContainer());
+
+        // /user-styles           lists the available user styles (names of the
+        //                        .css files in styleDir) as JSON, so clients can
+        //                        offer them in their style picker alongside a
+        //                        document's own built-in alternate stylesheets.
+        // /user-styles/<name>    serves that user style's raw CSS - what the
+        //                        <link> injected into served HTML points at, and
+        //                        what a client-side switcher fetches to apply a
+        //                        user style in place without a reload.
+        handlers.put("user-styles", new GETContainer() {
+            @Override
+            protected void GET(Request req, Response resp) throws Exception {
+                String[] seg = req.getPath().getSegments();
+                if (seg.length >= 2) {
+                    String name = URLDecoder.decode(seg[1], "UTF-8");
+                    File file = getUserStyleFile(name);
+                    if (file == null) {
+                        notFound(resp);
+                        return;
+                    }
+                    // no-cache + a validator (mtime+size) so the browser caches
+                    // it but revalidates each use: an unchanged file answers 304
+                    // (reused across articles, no body re-sent), while replacing
+                    // the file changes the ETag and serves the new CSS at once.
+                    String etag = String.format("\"%d-%d\"",
+                            file.lastModified(), file.length());
+                    resp.setValue("Cache-Control", "no-cache");
+                    resp.setValue("ETag", etag);
+                    if (etag.equals(req.getValue("If-None-Match"))) {
+                        resp.setStatus(Status.NOT_MODIFIED);
+                        return;
+                    }
+                    String css = getUserStyleCss(name);
+                    if (css == null) {
+                        notFound(resp);
+                        return;
+                    }
+                    resp.setValue("Content-Type", "text/css");
+                    resp.getByteChannel().write(ByteBuffer.wrap(css.getBytes("UTF-8")));
+                    return;
+                }
+                resp.setValue("Content-Type", "application/json");
+                resp.setValue("Cache-Control", "no-cache");
+                OutputStream out = resp.getOutputStream();
+                OutputStreamWriter os = new OutputStreamWriter(out, "UTF8");
+                json.writeValue(os, listUserStyles());
+            }
+        });
     }
 
     private void serveContent(Response resp,
@@ -585,7 +728,7 @@ public class Slobber implements Container {
             byte[] originalBytes = new byte[dup.remaining()];
             dup.get(originalBytes);
             String html = new String(originalBytes, charset);
-            String styledHtml = StylePreference.apply(html, styleTitle);
+            String styledHtml = StylePreference.apply(html, styleTitle, getUserStyleHref(styleTitle));
             if (!styledHtml.equals(html)) {
                 bytes = ByteBuffer.wrap(styledHtml.getBytes(charset));
             }

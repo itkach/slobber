@@ -64,15 +64,48 @@ public class StylePreference {
     private static final Pattern URI_SCHEME =
             Pattern.compile("^[a-zA-Z][a-zA-Z0-9+.\\-]*:");
 
-    static String apply(String html, String styleTitle) {
+    static String apply(String html, String styleTitle, String userStyleHref) {
         Document doc = Jsoup.parse(html, "");
         doc.outputSettings().prettyPrint(false);
 
         boolean changed = false;
         changed |= applyStylesheetSelection(doc, styleTitle);
         changed |= propagateToInternalLinks(doc, styleTitle);
+        changed |= linkUserStyle(doc, userStyleHref);
 
         return changed ? doc.outerHtml() : html;
+    }
+
+    /**
+     * Links a user-provided stylesheet as the last {@code <link>} in the
+     * {@code <head>} (href points at Slobber's own /user-styles/&lt;name&gt;),
+     * so it wins over the document's own stylesheets. A {@code <link>} in the
+     * head is render-blocking, so - exactly like an inline {@code <style>} -
+     * the page never paints in the default style first; but a link is trivial
+     * for a client-side style switcher to add/remove/disable (the same way it
+     * toggles the document's built-in {@code <link title>} alternates) and is
+     * cacheable across articles rather than re-sent in every response. Doing
+     * this server-side means there's no client-side JavaScript race on the
+     * initial load - the same reason built-in alternate selection moved here.
+     * A user style is mutually exclusive with a built-in one: because its name
+     * matches no {@code <link title>}, applyStylesheetSelection above has
+     * already disabled every built-in alternate. A client-side switcher that
+     * later replaces this style identifies this element by its href (Slobber's
+     * own /user-styles/ route) - no marker shared with any particular client is
+     * needed.
+     */
+    private static boolean linkUserStyle(Document doc, String userStyleHref) {
+        if (userStyleHref == null || userStyleHref.isEmpty()) {
+            return false;
+        }
+        Element head = doc.head();
+        if (head == null) {
+            return false;
+        }
+        head.appendElement("link")
+                .attr("rel", "stylesheet")
+                .attr("href", userStyleHref);
+        return true;
     }
 
     private static boolean applyStylesheetSelection(Document doc, String styleTitle) {
